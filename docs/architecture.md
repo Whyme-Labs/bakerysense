@@ -154,7 +154,16 @@ audit_log         — tenant_id, actor_user_id, action, target, metadata_json
 
 ### KV
 
-Binding: `env.KV` (KVNamespace). Used for session cache and short-lived tokens.
+Binding: `env.KV` (KVNamespace). Used for session cache, short-lived tokens, JWKS, and per-tenant connector records.
+
+#### Connector KV scheme
+
+| KV key | Contents |
+|---|---|
+| `connector:tenant:<tid>:index` | `{ connectorIds: string[], defaultId: string \| null }` |
+| `connector:tenant:<tid>:<connId>` | `Connector` JSON — credential AES-256-GCM encrypted with `CONNECTOR_MEK` |
+
+See `bakerysense-web/src/lib/connector.ts` for CRUD helpers and `src/lib/connector-presets.ts` for the 8 built-in provider presets.
 
 ### Secrets
 

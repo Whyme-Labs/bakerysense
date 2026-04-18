@@ -250,6 +250,78 @@ assertBranchAccess(claims, "branch-uuid");                 // throws NotFoundErr
 
 Error classes carry a `.status` property matching the HTTP status code for easy response mapping.
 
+## LLM Connector Model (`src/lib/connector.ts` + `src/lib/connector-presets.ts`)
+
+BakerySense supports per-tenant LLM connectors — each tenant can configure one or more upstream AI providers (OpenRouter, Groq, Together AI, Cloudflare Workers AI, OpenAI, or a custom OpenAI-compatible endpoint). Connector credentials are **encrypted at rest** with AES-256-GCM before being stored in KV.
+
+### Connector model (`src/lib/connector.ts`)
+
+```ts
+import {
+  createConnector, listConnectors, deleteConnector,
+  getDefaultConnector, setDefaultConnector, resolveUpstreamCredential,
+} from "@/lib/connector";
+
+// Create a connector (credential is encrypted before KV write)
+const c = await createConnector(env, tenantId, {
+  label: "My OpenRouter",
+  preset: "openrouter",
+  baseUrl: "https://openrouter.ai/api/v1",
+  model: "google/gemma-4-e4b-it",
+  authMethod: "api_key",
+  credential: "sk-or-xxx",
+});
+
+// List all connectors for a tenant
+const connectors = await listConnectors(env, tenantId);
+
+// Get / change the default connector
+const def = await getDefaultConnector(env, tenantId);
+await setDefaultConnector(env, tenantId, c.id);
+
+// Delete (default pointer auto-advances to next available)
+await deleteConnector(env, tenantId, c.id);
+
+// Decrypt the credential at call-time only
+const apiKey = await resolveUpstreamCredential(env, c);
+```
+
+### Encryption at rest
+
+Credentials are never stored in plaintext. Each credential is encrypted with a random 12-byte IV before being written to KV:
+
+```
+KV value: { ..., encryptedCredential: "v1:<base64(IV[12] || AES-256-GCM-ciphertext+tag)>" }
+```
+
+The master encryption key (`CONNECTOR_MEK`) is a 32-byte Wrangler secret (base64-encoded). Decryption happens only when `resolveUpstreamCredential` is called, immediately before an upstream API request.
+
+### KV key scheme
+
+| KV key | Value |
+|---|---|
+| `connector:tenant:<tid>:index` | JSON `ConnectorIndex` — ordered `connectorIds[]` + `defaultId` |
+| `connector:tenant:<tid>:<connId>` | JSON `Connector` (credential already encrypted) |
+
+### Presets (`src/lib/connector-presets.ts`)
+
+Eight built-in presets with default base URLs and suggested models:
+
+| Preset ID | Label | OAuth | API key |
+|---|---|---|---|
+| `openrouter` | OpenRouter | yes | yes |
+| `groq` | Groq | no | yes |
+| `together` | Together AI | no | yes |
+| `cloudflare-ai` | Cloudflare Workers AI | no | no |
+| `openai` | OpenAI | no | yes |
+| `anthropic-via-oai` | Anthropic (via OAI proxy) | no | yes |
+| `ollama-tunnel` | Local Ollama (tunnel) | no | no |
+| `custom` | Custom OpenAI-compatible | no | yes |
+
+```bash
+npx vitest run tests/unit/connector.test.ts
+```
+
 ## Tenant Helpers (`src/lib/tenant.ts`)
 
 Three database helpers for resolving tenant context from JWT claims:
@@ -275,7 +347,7 @@ All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest
 D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.ts`) that reads the `drizzle/` SQL files using `readD1Migrations` and injects them into the Worker context through `tests/vitestSetup.ts`, making `env.MIGRATIONS` available to `applyD1Migrations` calls in tests.
 
 ```bash
-# Run all tests (18 total)
+# Run all tests (21 total)
 npx vitest run
 
 # Run individual suites
@@ -284,6 +356,7 @@ npx vitest run tests/unit/jwt.test.ts
 npx vitest run tests/unit/jwks.test.ts
 npx vitest run tests/unit/rbac.test.ts
 npx vitest run tests/unit/tenant.test.ts
+npx vitest run tests/unit/connector.test.ts
 ```
 
 Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
