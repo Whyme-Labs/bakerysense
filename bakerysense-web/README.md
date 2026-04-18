@@ -147,3 +147,39 @@ Dependencies: `@noble/hashes` (argon2id, randomBytes), `@scure/base` (base64 enc
 ```bash
 npx vitest run tests/unit/argon2.test.ts
 ```
+
+### JWT Tokens (`src/lib/auth/jwt.ts`)
+
+BakerySense uses **ES256 (ECDSA P-256) JWTs** for stateless access tokens, implemented via the `jose` library (Web Crypto API — fully compatible with Cloudflare Workers).
+
+Key types:
+
+| Export | Description |
+|---|---|
+| `Role` | Union type: `platform_admin` \| `tenant_admin` \| `branch_manager` \| `staff` \| `viewer` |
+| `AccessTokenClaims` | Token payload: `sub`, `tid`, `role`, `branches`, `kid` |
+| `KeyPairJwk` | `{ privateJwk, publicJwk }` as `JsonWebKey` |
+
+Core functions:
+
+```ts
+import { generateKeyPair, signAccessToken, verifyAccessToken } from "@/lib/auth/jwt";
+
+// Generate an ES256 key pair (for JWKS rotation)
+const { privateJwk, publicJwk } = await generateKeyPair();
+
+// Sign an access token (15-minute TTL typical)
+const token = await signAccessToken(
+  { sub: userId, tid: tenantId, role: "staff", branches: ["b1"], kid: "key-id" },
+  { privateJwk, kid: "key-id", ttlSeconds: 900 },
+);
+
+// Verify and decode (resolvePublicJwk fetches the right key by kid from JWKS)
+const claims = await verifyAccessToken(token, async (kid) => fetchPublicJwk(kid));
+```
+
+Token claims: `sub` (user id), `tid` (tenant id), `role`, `branches` (null = all branches), `iss` (`bakerysense`), `aud` (`bakerysense-web`), `iat`, `exp`, `kid` in protected header.
+
+```bash
+npx vitest run tests/unit/jwt.test.ts
+```
