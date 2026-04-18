@@ -1,7 +1,7 @@
 # BakerySense
 
 [![License: CC-BY-4.0](https://img.shields.io/badge/License-CC--BY--4.0-lightgrey.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-39%20passing-brightgreen)](./tests)
+[![Tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)](./tests)
 [![Gemma 4](https://img.shields.io/badge/Gemma%204-E4B%20Q4__K__M-orange)](https://ollama.com/library/gemma4)
 
 Offline-first production decision copilot for bakeries. Submission for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-4-good-hackathon) (deadline **2026-05-18**).
@@ -104,7 +104,7 @@ python scripts/demo_agent.py
 python -m pytest tests/ -v
 ```
 
-39 tests covering features (leak-freeness), forecaster (train/predict/save/load/SHAP), newsvendor math, eval metrics, agent tool dispatch, vision JSON parsing, and the session tool-calling loop.
+49 tests covering features (leak-freeness), forecaster (train/predict/save/load/SHAP), newsvendor math, eval metrics, agent tool dispatch, vision JSON parsing, session tool-calling loop, and JS↔Python gbm-walker parity (700 cases, 7 quantiles, 100 sampled rows, all within 1e-4 absolute error).
 
 ## Reproducibility
 
@@ -121,7 +121,8 @@ To verify on a fresh machine:
 git clone <repo> && cd gemma-4-hack
 uv venv && source .venv/bin/activate
 uv pip install -e '.[dev]'
-python -m pytest tests/ -q              # 39 passing
+python -m pytest tests/ -q              # Python tests
+cd bakerysense-web && npx vitest run    # 49 JS tests (48 unit + 1 parity)
 python scripts/train_baseline.py        # MASE < 1, saves models/gbm/
 python scripts/demo_agent.py --tools-only
 ```
@@ -146,8 +147,13 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 **Week 1** (complete)
 - Scaffold, data loader (synthetic + real French Bakery support), features, LightGBM 7-quantile forecaster with save/load, newsvendor layer, SHAP explanations, agent tool surface, llama.cpp server wrapper, scripted/interactive demo, pytest suite.
 
-**Week 2** (next)
-- Real client data validation · TimesFM cold-start sidecar · multimodal photo → unit count · markdown policy calibration · run the full Gemma conversation loop against the real model.
+**Week 2** (in progress)
+- P2.01 Web scaffold (Next.js + Cloudflare Workers AI) ✓
+- P2.02 JWT/RBAC auth ✓
+- P2.03 Python `export_trees` → JSON tree schema with categorical + default_left support ✓
+- P2.04 Pure-JS `gbm-walker` (predict + approximate SHAP) ✓
+- P2.05 JS↔Python parity harness (700 cases, all within 1e-4 abs error) ✓
+- TimesFM cold-start sidecar · multimodal photo → unit count · markdown policy calibration · full Gemma conversation loop
 
 **Week 3**
 - QLoRA fine-tune via Unsloth on bakery vocabulary · Ollama packaging for Special Tech Track · markdown policy tuning.
