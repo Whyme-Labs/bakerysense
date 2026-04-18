@@ -183,3 +183,66 @@ Token claims: `sub` (user id), `tid` (tenant id), `role`, `branches` (null = all
 ```bash
 npx vitest run tests/unit/jwt.test.ts
 ```
+
+### JWKS Store (`src/lib/auth/jwks.ts`)
+
+BakerySense uses a **KV-backed JWKS store** where every private JWK is encrypted at rest using AES-256-GCM (AEAD) via `@noble/ciphers`. Key rotation retires the previous key with a 7-day grace window during which tokens signed with the old key remain verifiable.
+
+#### Encryption
+
+Each private JWK is encrypted with a per-entry random 12-byte IV before storage:
+
+```
+KV value = base64(IV[12] || AES-256-GCM-ciphertext+tag)
+```
+
+The master encryption key (`JWKS_ENCRYPTION_KEY`) is a 32-byte secret stored as a base64-encoded Wrangler secret.
+
+#### KV Key Scheme
+
+| KV key | Value |
+|---|---|
+| `jwks:active` | Current active `kid` (string) |
+| `jwks:<kid>` | JSON `JwksEntry` with public JWK + encrypted private JWK |
+
+#### API
+
+```ts
+import { getActivePrivateJwk, getPublicJwkByKid, rotateKeys, listActiveJwks } from "@/lib/auth/jwks";
+
+// Get (or lazily create) the active private JWK for signing
+const { kid, jwk } = await getActivePrivateJwk(env);
+
+// Fetch a public JWK for token verification (throws if unknown or past grace)
+const publicJwk = await getPublicJwkByKid(env, kid);
+
+// Rotate: marks current key retired, generates a new active key
+const { newKid, retiredKid } = await rotateKeys(env);
+
+// List all keys still within the grace window
+const keys = await listActiveJwks(env); // [{ kid, publicJwk, status }]
+```
+
+#### Rotation Grace Window
+
+Retired keys remain verifiable for **7 days** (`RETIRE_GRACE_MS`). After that, `getPublicJwkByKid` throws `kid retired past grace: <kid>`, rejecting tokens signed with the expired key.
+
+```bash
+npx vitest run tests/unit/jwks.test.ts
+```
+
+## Testing
+
+All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.
+
+```bash
+# Run all tests (8 total: argon2 × 3, JWT × 3, JWKS × 2)
+npx vitest run
+
+# Run individual suites
+npx vitest run tests/unit/argon2.test.ts
+npx vitest run tests/unit/jwt.test.ts
+npx vitest run tests/unit/jwks.test.ts
+```
+
+Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
