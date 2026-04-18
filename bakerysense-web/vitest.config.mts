@@ -1,5 +1,17 @@
 import { defineConfig } from "vitest/config";
+import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+
 export default defineConfig({
-  test: { include: ["tests/**/*.test.ts"] },
-  resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
+	plugins: [
+		cloudflareTest({
+			wrangler: { configPath: "./wrangler.jsonc", environment: "test" },
+		}),
+	],
+	test: {
+		include: ["tests/**/*.test.ts"],
+		testTimeout: 30000,
+	},
+	resolve: {
+		alias: { "@": "/src" },
+	},
 });

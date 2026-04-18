@@ -13,6 +13,7 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@noble/ciphers": "^1.3.0",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@opennextjs/cloudflare": "^1.19.1",

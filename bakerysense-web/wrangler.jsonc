@@ -69,4 +69,24 @@
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
 	// "vars": {  "MY_VARIABLE": "production_value" }
+	"env": {
+		"test": {
+			"kv_namespaces": [
+				{ "binding": "KV", "id": "f07f4dea79ce40309aad6e595d0cb214" }
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "bakerysense",
+					"database_id": "0f9b74b1-fa75-4ff1-bbfb-87bd0e377890",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"vars": {
+				"JWKS_ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+				"CONNECTOR_MEK":       "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBE=",
+				"SESSION_SIGNING_KEY": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCA="
+			}
+		}
+	}
 }
