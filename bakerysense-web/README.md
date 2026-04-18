@@ -549,6 +549,50 @@ const schemas = TOOL_SCHEMAS;
 npx vitest run tests/unit/tools-dispatch.test.ts
 ```
 
+## Chat API (`src/app/api/chat/`)
+
+BakerySense exposes a conversational interface backed by a Cloudflare Queue consumer. All routes require a valid session; mutating routes additionally require a CSRF token.
+
+### POST /api/chat
+
+Creates or continues a chat session, enqueues a turn to `CHAT_QUEUE`, and returns a 202 with stream URL.
+
+**Request body:**
+
+```json
+{
+  "branchId": "brn1",
+  "message": "What should I bake tomorrow?",
+  "sessionId": "s_..." // optional — omit to start a new session
+}
+```
+
+**Response (202):**
+
+```json
+{
+  "sessionId": "s_...",
+  "turnId": "t_...",
+  "streamUrl": "/api/chat/stream/<turnId>?s=<sessionId>"
+}
+```
+
+### GET /api/chat/stream/:turnId?s=:sessionId (SSE)
+
+Long-polls KV every second (up to 150 s, within `maxDuration: 180`) and streams turn events as `text/event-stream`. Emits a `{ type: "final", ... }` frame when the turn reaches `done` or `failed`, then closes.
+
+### GET /api/chat/turn/:turnId?s=:sessionId
+
+One-shot fetch of the full `TurnState` — useful for reconnects where the SSE stream was lost.
+
+### POST /api/chat/reset
+
+Deletes a chat session from KV (accepts `{ sessionId: string }` body). No-op if `sessionId` is absent.
+
+### Queue consumer wiring
+
+The `CHAT_QUEUE` binding is declared in `wrangler.jsonc`. The queue consumer default export (`src/lib/queue-consumer.ts`) is **not** wired into the OpenNext build in this task — wiring requires editing `open-next.config.ts` and is deferred to deploy-time. Integration tests in P2.14 invoke the consumer directly.
+
 ## Testing
 
 All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.
@@ -558,7 +602,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (67 total)
+# Run all tests (70 total)
 npx vitest run
 
 # Run individual suites
@@ -618,7 +662,7 @@ BakerySense uses the **double-submit cookie pattern**:
 2. Client-side JavaScript reads the `bs_csrf` cookie and includes it as `X-CSRF-Token` on every mutating request.
 3. Mutating authenticated routes (connector CRUD, refresh) verify the header via `verifyCsrf` before processing.
 
-Routes enforcing CSRF: `POST /api/connector`, `DELETE /api/connector/:id`, `POST /api/connector/:id/default`, `POST /api/auth/refresh`.
+Routes enforcing CSRF: `POST /api/connector`, `DELETE /api/connector/:id`, `POST /api/connector/:id/default`, `POST /api/auth/refresh`, `POST /api/chat`, `POST /api/chat/reset`.
 
 Signout does **not** require CSRF (worst case an attacker logs a user out — annoying but not a security breach).
 
