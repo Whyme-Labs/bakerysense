@@ -602,7 +602,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (70 total)
+# Run all tests (76 total)
 npx vitest run
 
 # Run individual suites
@@ -617,9 +617,25 @@ npx vitest run tests/unit/gbm-walker.test.ts
 npx vitest run tests/unit/features.test.ts
 npx vitest run tests/unit/tools-dispatch.test.ts
 npx vitest run tests/integration/auth-flow.test.ts
+npx vitest run tests/integration/chat-turn.test.ts
 ```
 
 Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
+
+### Chat integration tests (`tests/integration/chat-turn.test.ts`)
+
+Six tests covering the P2 chat API happy path via Miniflare:
+
+| Test | Assertion |
+|---|---|
+| `returns 401 without a session` | Unauthenticated POST is rejected |
+| `returns 403 without CSRF` | Missing `X-CSRF-Token` is rejected |
+| `returns 202 with turnId + streamUrl` | Full authenticated POST returns expected IDs |
+| `creates a KV turn record with status=queued` | KV turn + session records are written |
+| `validates body — rejects empty message` | Zod schema enforces non-empty message |
+| `GET /api/chat/turn/:turnId returns the queued turn state` | Reconnect poll works immediately after POST |
+
+Note on Miniflare queue dispatch: `CHAT_QUEUE.send()` in the test environment uses Miniflare's in-memory queue producer (declared in `wrangler.jsonc` `env.test.queues.producers`). The queue message is enqueued but the consumer (`src/lib/queue-consumer.ts`) is **not** invoked in-process by Miniflare — full consumer SSE end-to-end requires a separate Worker consumer binding, which is deferred to deploy-time. The tests assert 202 + KV record correctness; the SSE streaming path is validated indirectly via `GET /api/chat/turn/:turnId` returning `status: queued`.
 
 ## JWKS rotation cron
 
