@@ -133,6 +133,43 @@ Everything runs on one machine. No network calls at inference time after the ini
 - **Unsloth Track ($10 000 confirmed)** — QLoRA fine-tune of Gemma 4 E4B on bakery-specific vocabulary (SKU names, French / Malay / Chinese bakery terms, shift-manager note style).
 - **llama.cpp Track** — primary runtime; leverages native tool calling and multimodal input.
 
+## Web layer (Cloudflare Workers + Next.js)
+
+The `bakerysense-web/` directory is a Next.js 16 app deployed to Cloudflare Workers via `@opennextjs/cloudflare`.
+
+### Persistence — Cloudflare D1 + Drizzle ORM
+
+Binding: `env.DB` (D1Database). Client helper: `src/db/client.ts::getDb(env)`.
+
+Schema (6 tables, `drizzle/0000_init.sql`):
+
+```
+tenants           — slug, name, vertical, plan
+users             — email, password_hash, email_verified
+memberships       — user_id → users, tenant_id → tenants, role enum
+branches          — tenant_id → tenants, name, city, cluster, type
+branch_access     — membership_id × branch_id (composite PK)
+audit_log         — tenant_id, actor_user_id, action, target, metadata_json
+```
+
+### KV
+
+Binding: `env.KV` (KVNamespace). Used for session cache, short-lived tokens, JWKS, and per-tenant connector records.
+
+#### Connector KV scheme
+
+| KV key | Contents |
+|---|---|
+| `connector:tenant:<tid>:index` | `{ connectorIds: string[], defaultId: string \| null }` |
+| `connector:tenant:<tid>:<connId>` | `Connector` JSON — credential AES-256-GCM encrypted with `CONNECTOR_MEK` |
+
+See `bakerysense-web/src/lib/connector.ts` for CRUD helpers and `src/lib/connector-presets.ts` for the 8 built-in provider presets.
+
+### Secrets
+
+Injected via `wrangler secret put` (production) or `.dev.vars` (local):
+`SESSION_SIGNING_KEY`, `JWKS_ENCRYPTION_KEY`, `CONNECTOR_MEK`, `OPENROUTER_API_KEY`, `OPENROUTER_OAUTH_CLIENT_ID`, `OPENROUTER_OAUTH_CLIENT_SECRET`, `OPS_ROTATE_SECRET`.
+
 ## Status by module
 
 | Module | Day 1 | Week 2 | Week 3 | Week 4 |

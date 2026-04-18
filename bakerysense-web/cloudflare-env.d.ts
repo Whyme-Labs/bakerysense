@@ -9,7 +9,24 @@ declare namespace Cloudflare {
 		WORKER_SELF_REFERENCE: Fetcher /* bakerysense-web */;
 	}
 }
-interface CloudflareEnv extends Cloudflare.Env {}
+interface CloudflareEnv extends Cloudflare.Env {
+	// KV binding (kv_namespaces[0])
+	KV: KVNamespace;
+	// Secrets / vars
+	JWKS_ENCRYPTION_KEY: string;
+	CONNECTOR_MEK: string;
+	SESSION_SIGNING_KEY: string;
+}
+
+// Augment Cloudflare.Env so `env` from cloudflare:test also carries KV + secrets
+declare namespace Cloudflare {
+	interface Env {
+		KV: KVNamespace;
+		JWKS_ENCRYPTION_KEY: string;
+		CONNECTOR_MEK: string;
+		SESSION_SIGNING_KEY: string;
+	}
+}
 type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
@@ -13028,4 +13045,17 @@ declare abstract class WorkflowInstance {
         type: string;
         payload: unknown;
     }): Promise<void>;
+}
+
+// BakerySense bindings and secrets — appended for D1/KV access
+interface CloudflareEnv {
+  DB: D1Database;
+  KV: KVNamespace;
+  SESSION_SIGNING_KEY: string;
+  JWKS_ENCRYPTION_KEY: string;
+  CONNECTOR_MEK: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_OAUTH_CLIENT_ID?: string;
+  OPENROUTER_OAUTH_CLIENT_SECRET?: string;
+  OPS_ROTATE_SECRET?: string;
 }

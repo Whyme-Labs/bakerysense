@@ -6,28 +6,45 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "lint": "next lint",
+    "verify": "npm run typecheck && npm run lint && npm run test",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@noble/ciphers": "^1.3.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "@opennextjs/cloudflare": "^1.19.1",
+    "@scure/base": "^2.0.0",
+    "drizzle-orm": "^0.45.2",
+    "jose": "^6.2.2",
     "next": "16.2.3",
     "react": "19.1.5",
-    "react-dom": "19.1.5"
+    "react-dom": "19.1.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.14.7",
+    "@cloudflare/workers-types": "^4.20260418.1",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.39",
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",
+    "@vitest/ui": "^4.1.4",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
+    "miniflare": "^4.20260415.0",
     "tailwindcss": "^4",
     "typescript": "^5.7.4",
+    "vitest": "^4.1.4",
     "wrangler": "^4.83.0"
   }
 }
