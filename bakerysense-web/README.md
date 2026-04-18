@@ -412,3 +412,11 @@ worker, add the scheduled export to `open-next.config.ts`'s workerWrapper
 once that version is confirmed. For MVP, use the manual endpoint
 `POST /api/internal/rotate-jwks` with header `x-ops-secret: <OPS_ROTATE_SECRET>`
 for on-demand rotation.
+
+### Seeding the demo tenant
+
+The repo ships a `seedDemo()` helper that inserts the Favorita demo tenant
+(5 branches, `demo@bakerysense.app` as tenant_admin, `manager@bakerysense.app`
+as branch_manager restricted to 2 branches). Call it from an integration test
+beforeAll, or wire up a one-off fetch handler under `scripts/seed-demo.ts` and
+POST to `/seed-demo` during `wrangler dev`.
