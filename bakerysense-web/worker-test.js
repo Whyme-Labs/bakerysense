@@ -64,6 +64,24 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// GET /api/oauth/openrouter/start
+		if (url.pathname === "/api/oauth/openrouter/start") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/oauth/openrouter/start/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/oauth/openrouter/callback
+		if (url.pathname === "/api/oauth/openrouter/callback") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/oauth/openrouter/callback/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };
