@@ -71,6 +71,7 @@
 	// "vars": {  "MY_VARIABLE": "production_value" }
 	"env": {
 		"test": {
+			"main": "worker-test.js",
 			"kv_namespaces": [
 				{ "binding": "KV", "id": "f07f4dea79ce40309aad6e595d0cb214" }
 			],
