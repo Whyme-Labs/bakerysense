@@ -42,6 +42,28 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// POST /api/connector/:id/default
+		const mDefault = url.pathname.match(/^\/api\/connector\/([^/]+)\/default$/);
+		if (mDefault && request.method === "POST") {
+			const mod = await import("./src/app/api/connector/[id]/default/route.ts");
+			return mod.POST(request, { params: Promise.resolve({ id: mDefault[1] }) });
+		}
+
+		// DELETE /api/connector/:id
+		const mDel = url.pathname.match(/^\/api\/connector\/([^/]+)$/);
+		if (mDel && request.method === "DELETE") {
+			const mod = await import("./src/app/api/connector/[id]/route.ts");
+			return mod.DELETE(request, { params: Promise.resolve({ id: mDel[1] }) });
+		}
+
+		// GET /api/connector and POST /api/connector
+		if (url.pathname === "/api/connector") {
+			const mod = await import("./src/app/api/connector/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };
