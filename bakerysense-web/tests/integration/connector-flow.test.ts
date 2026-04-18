@@ -11,7 +11,11 @@ async function signup(): Promise<string> {
 }
 
 describe("connector flow", () => {
-	beforeEach(async () => { await applyD1Migrations(env.DB, env.MIGRATIONS); });
+	beforeEach(async () => {
+		await applyD1Migrations(env.DB, env.MIGRATIONS);
+		const listed = await env.KV.list();
+		await Promise.all(listed.keys.map((k) => env.KV.delete(k.name)));
+	});
 
 	it("authenticated tenant_admin can create + list + delete a connector", async () => {
 		const cookie = await signup();

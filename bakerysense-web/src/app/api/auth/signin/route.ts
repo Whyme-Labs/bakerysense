@@ -7,7 +7,8 @@ import { signAccessToken } from "@/lib/auth/jwt";
 import { getActivePrivateJwk } from "@/lib/auth/jwks";
 import { issueRefresh } from "@/lib/auth/refresh";
 import { setAuthCookie } from "@/lib/auth/cookies";
-import { BadRequest, Unauthorized, errorResponse } from "@/lib/errors";
+import { BadRequest, Unauthorized, TooMany, errorResponse } from "@/lib/errors";
+import { rateLimit } from "@/lib/ratelimit";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const runtime = "nodejs";
@@ -24,6 +25,10 @@ export async function POST(req: Request): Promise<Response> {
 		const parsed = Body.safeParse(await req.json());
 		if (!parsed.success) throw new BadRequest("invalid body");
 		const { email, password, tenantSlug } = parsed.data;
+
+		const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+		const rl = await rateLimit(env, "signin", `${ip}:${email}`, 5, 900);
+		if (!rl.allowed) throw new TooMany("too many attempts");
 
 		const db = getDb(env);
 		const user = await db.select().from(users).where(eq(users.email, email)).get();

@@ -4,6 +4,9 @@ import { env, applyD1Migrations, SELF } from "cloudflare:test";
 describe("auth flow", () => {
 	beforeEach(async () => {
 		await applyD1Migrations(env.DB, env.MIGRATIONS);
+		// Clear KV so rate-limit counters don't bleed between tests
+		const listed = await env.KV.list();
+		await Promise.all(listed.keys.map((k) => env.KV.delete(k.name)));
 	});
 
 	it("signup creates tenant + user + membership + branch + cookies", async () => {
@@ -65,5 +68,25 @@ describe("auth flow", () => {
 			headers: { cookie: cookies.split(",").map((s) => s.split(";")[0]).join("; ") },
 		});
 		expect(res.status).toBe(200);
+	});
+
+	it("rate-limits signin after 5 wrong attempts", async () => {
+		// create an account first
+		await SELF.fetch("https://x.test/api/auth/signup", {
+			method: "POST", headers: { "content-type": "application/json" },
+			body: JSON.stringify({ email:"r@x.co", password:"Rate2026Rate!!", tenantName:"R", tenantSlug:"rl", vertical:"bakery" }),
+		});
+
+		for (let i = 0; i < 5; i++) {
+			await SELF.fetch("https://x.test/api/auth/signin", {
+				method: "POST", headers: { "content-type": "application/json" },
+				body: JSON.stringify({ email:"r@x.co", password:"wrong!!", tenantSlug:"rl" }),
+			});
+		}
+		const sixth = await SELF.fetch("https://x.test/api/auth/signin", {
+			method: "POST", headers: { "content-type": "application/json" },
+			body: JSON.stringify({ email:"r@x.co", password:"wrong!!", tenantSlug:"rl" }),
+		});
+		expect(sixth.status).toBe(429);
 	});
 });

@@ -6,7 +6,8 @@ import { signAccessToken } from "@/lib/auth/jwt";
 import { getActivePrivateJwk } from "@/lib/auth/jwks";
 import { issueRefresh } from "@/lib/auth/refresh";
 import { setAuthCookie } from "@/lib/auth/cookies";
-import { BadRequest, Conflict, errorResponse } from "@/lib/errors";
+import { BadRequest, Conflict, TooMany, errorResponse } from "@/lib/errors";
+import { rateLimit } from "@/lib/ratelimit";
 import { eq } from "drizzle-orm";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
@@ -32,6 +33,10 @@ export async function POST(req: Request): Promise<Response> {
 		const parsed = Body.safeParse(json);
 		if (!parsed.success) throw new BadRequest("invalid body");
 		const { email, password, tenantName, tenantSlug, vertical } = parsed.data;
+
+		const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+		const rl = await rateLimit(env, "signup", ip, 3, 3600);
+		if (!rl.allowed) throw new TooMany("too many signups");
 
 		const db = getDb(env);
 		const existingUser = await db.select().from(users).where(eq(users.email, email)).get();
