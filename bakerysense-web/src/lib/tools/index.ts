@@ -16,13 +16,13 @@ export interface ToolContext {
   quantiles: number[];
 }
 
-export interface ToolImpl<Args = unknown, Result = unknown> {
+export interface ToolImpl<Args = any, Result = unknown> {
   schema: ToolSchema;
   args: z.ZodType<Args>;
   handler: (args: Args, ctx: ToolContext) => Promise<Result>;
 }
 
-export const TOOL_REGISTRY: Record<string, ToolImpl> = {
+export const TOOL_REGISTRY: Record<string, ToolImpl<any, unknown>> = {
   list_skus: listSkus,
   forecast,
   explain_drivers: explainDrivers,
