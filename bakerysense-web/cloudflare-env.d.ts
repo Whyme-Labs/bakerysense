@@ -13029,3 +13029,16 @@ declare abstract class WorkflowInstance {
         payload: unknown;
     }): Promise<void>;
 }
+
+// BakerySense bindings and secrets — appended for D1/KV access
+interface CloudflareEnv {
+  DB: D1Database;
+  KV: KVNamespace;
+  SESSION_SIGNING_KEY: string;
+  JWKS_ENCRYPTION_KEY: string;
+  CONNECTOR_MEK: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_OAUTH_CLIENT_ID?: string;
+  OPENROUTER_OAUTH_CLIENT_SECRET?: string;
+  OPS_ROTATE_SECRET?: string;
+}
