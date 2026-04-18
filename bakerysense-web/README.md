@@ -470,7 +470,7 @@ The **feature store** loads pre-computed ML features from Cloudflare R2 and cach
 ### API
 
 ```ts
-import { loadFeatures, getFeatureRow, type FeatureStore } from "@/lib/features";
+import { loadFeatures, getFeatureRow, loadTenantModels, type FeatureStore, type TenantModels } from "@/lib/features";
 
 // Load feature store for a tenant (cached in memory)
 const store = await loadFeatures(env, "tenant-id");
@@ -484,10 +484,16 @@ interface FeatureStore {
 // Retrieve feature row (or null if not found)
 const row = getFeatureRow(store, "brn1", "BAGUETTE", "2024-12-31");
 // row = { lag_1: 200, lag_7: 210, rolling_mean_7: 205 } or null
+
+// Load trained quantile models from R2 (cached in memory)
+const models = await loadTenantModels(env, "tenant-id");
+// models.quantiles["0.5"] is the raw tree payload for the 0.5 quantile model
+const m = loadTrees(models.quantiles["0.5"]);
 ```
 
 **Caching Behavior:**
 - First load for a tenant: fetches from R2 at key `tenant:<tenantId>/features/latest.json`
+- Model cache fetches from R2 at key `tenant:<tenantId>/trees/latest.json`
 - Subsequent loads: returns cached promise (same reference), avoiding duplicate R2 calls
 - On error: cache is cleared, allowing retry on next request
 - Cold starts: cache is reset (in-memory, per Worker instance)
@@ -496,6 +502,51 @@ const row = getFeatureRow(store, "brn1", "BAGUETTE", "2024-12-31");
 
 ```bash
 npx vitest run tests/unit/features.test.ts
+```
+
+## Tool Registry (`src/lib/tools/`)
+
+The **tool registry** exposes five LLM-callable tools for the forecasting chat assistant. All tools use Zod for input validation; the central `dispatch` function returns a structured error object (never throws) on unknown tools or validation failures.
+
+### Tools
+
+| Tool | Description |
+|---|---|
+| `list_skus` | Returns SKUs known to the forecaster for a given branch |
+| `forecast` | Returns quantile forecasts and the newsvendor-optimal bake quantity for a SKU-day |
+| `explain_drivers` | Returns top approximate-SHAP feature contributions for a SKU-day forecast |
+| `waste_risk` | Estimates the probability that a batch leaves more than N% unsold |
+| `suggest_markdowns` | Given end-of-day remaining inventory, returns discount percentages per SKU |
+
+### Schema rule (Gemma 4 compatibility)
+
+All tool `parameters` schemas must use **flat top-level properties** — no nested structs. Record-valued fields (e.g. `inventory`) are allowed only when `additionalProperties.type` is a primitive (`string`, `number`, `integer`, `boolean`). The unit test `tools-dispatch.test.ts` enforces this invariant automatically.
+
+### Usage
+
+```ts
+import { dispatch, TOOL_REGISTRY, TOOL_SCHEMAS } from "@/lib/tools";
+import type { ToolContext } from "@/lib/tools";
+
+const ctx: ToolContext = {
+  env,
+  tenantId: "t1",
+  userId: "u1",
+  permittedBranches: null,       // null = all branches
+  defaultBranchId: "brn1",
+  costRatio: { cu: 2, co: 1 },  // underage cost / overage cost
+  quantiles: [0.1, 0.3, 0.5, 0.7, 0.9],
+};
+
+// Dispatch a tool call (never throws — errors are returned as { error: string })
+const result = await dispatch("forecast", { sku: "BAGUETTE", on_date: "2025-01-01", branch_id: "brn1" }, ctx);
+
+// All tool schemas (for passing to LLM)
+const schemas = TOOL_SCHEMAS;
+```
+
+```bash
+npx vitest run tests/unit/tools-dispatch.test.ts
 ```
 
 ## Testing
@@ -507,7 +558,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (54 total)
+# Run all tests (67 total)
 npx vitest run
 
 # Run individual suites
@@ -520,6 +571,7 @@ npx vitest run tests/unit/connector.test.ts
 npx vitest run tests/unit/newsvendor.test.ts
 npx vitest run tests/unit/gbm-walker.test.ts
 npx vitest run tests/unit/features.test.ts
+npx vitest run tests/unit/tools-dispatch.test.ts
 npx vitest run tests/integration/auth-flow.test.ts
 ```
 
