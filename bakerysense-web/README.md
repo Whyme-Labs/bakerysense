@@ -346,7 +346,9 @@ Registers a new tenant + admin user in one atomic sequence.
 
 - Inserts `tenants`, `users`, `memberships` (role `tenant_admin`), and a default `branches` row (`name: "HQ"`)
 - Issues a 15-minute ES256 JWT access token (`bs_at` cookie, HttpOnly, Secure, SameSite=Strict)
-- Issues a 30-day refresh token stored in KV (`bs_rt` cookie, same security attributes)
+- Issues a 30-day refresh token stored in KV (`bs_rt` cookie, same security attributes; includes `ip` + `ua`)
+- Issues a CSRF token stored in KV and exposed as a readable `bs_csrf` cookie (double-submit pattern)
+- Writes two `audit_log` rows: `tenant.created` and `user.signed_up`
 - Returns `{ tenantSlug, userId, tenantId }`
 
 **Error responses:**
@@ -389,7 +391,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (23 total)
+# Run all tests (38 total)
 npx vitest run
 
 # Run individual suites
@@ -406,12 +408,48 @@ Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set
 
 ## JWKS rotation cron
 
-Cron runs daily at 03:00 UTC per `wrangler.jsonc`'s `triggers.crons`.
-Handler lives at `scripts/cron/jwks-rotate.ts`. To wire it into the OpenNext
-worker, add the scheduled export to `open-next.config.ts`'s workerWrapper
-once that version is confirmed. For MVP, use the manual endpoint
-`POST /api/internal/rotate-jwks` with header `x-ops-secret: <OPS_ROTATE_SECRET>`
-for on-demand rotation.
+The cron trigger has been **disabled** in `wrangler.jsonc` (`triggers.crons: []`) because the OpenNext bundle does not expose a `scheduled` handler — wiring a cron would create a false-security impression (the trigger fires but nothing rotates).
+
+The rotation handler (`scripts/cron/jwks-rotate.ts`) is retained for future use. Once a separate scheduled Worker script is configured, re-enable the cron by restoring the `triggers.crons` entry.
+
+For now, use the manual endpoint for on-demand rotation:
+
+```bash
+POST /api/internal/rotate-jwks
+x-ops-secret: <OPS_ROTATE_SECRET>
+```
+
+## Audit Log (`src/lib/audit.ts`)
+
+All significant security and lifecycle events are written to the `audit_log` D1 table via `writeAudit`. The helper **never throws** — a failed audit write is logged to `console.error` but never propagates to the caller.
+
+Events written:
+
+| Action | Trigger |
+|---|---|
+| `tenant.created` | Successful signup |
+| `user.signed_up` | Successful signup |
+| `user.signed_in` | Successful signin |
+| `user.signed_out` | Signout with a valid refresh cookie |
+| `token.reuse_detected` | Refresh token presented after revocation |
+| `token.refreshed` | Successful token rotation |
+| `connector.created` | POST /api/connector |
+| `connector.deleted` | DELETE /api/connector/:id |
+| `connector.default_changed` | POST /api/connector/:id/default |
+| `oauth.initiated` | GET /api/oauth/openrouter/start |
+| `oauth.completed` | GET /api/oauth/openrouter/callback (on success) |
+
+## CSRF Protection
+
+BakerySense uses the **double-submit cookie pattern**:
+
+1. On signup or signin, the server issues a short-lived CSRF token via `issueCsrf` (stored in KV), exposed as a readable `bs_csrf` cookie (no `HttpOnly`).
+2. Client-side JavaScript reads the `bs_csrf` cookie and includes it as `X-CSRF-Token` on every mutating request.
+3. Mutating authenticated routes (connector CRUD, refresh) verify the header via `verifyCsrf` before processing.
+
+Routes enforcing CSRF: `POST /api/connector`, `DELETE /api/connector/:id`, `POST /api/connector/:id/default`, `POST /api/auth/refresh`.
+
+Signout does **not** require CSRF (worst case an attacker logs a user out — annoying but not a security breach).
 
 ### Seeding the demo tenant
 
