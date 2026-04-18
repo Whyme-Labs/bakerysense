@@ -382,6 +382,36 @@ const membership = await loadMembership(env, userId, tenant.id);
 const branches = await loadPermittedBranches(env, membership.id); // string[] | null
 ```
 
+## Forecasting & Newsvendor (`src/lib/newsvendor.ts`)
+
+The **newsvendor model** optimizes order quantity based on misalignment costs between overstocking and understocking. Given underage cost (`Cu`) and overage cost (`Co`), it computes a target service level and selects the order quantity from pre-trained demand quantiles.
+
+### API
+
+```ts
+import { targetServiceLevel, orderQuantity } from "@/lib/newsvendor";
+
+// Compute target service level: probability of demand >= order quantity
+const tsl = targetServiceLevel(cu, co); // returns Cu / (Cu + Co)
+
+// Select order quantity from quantile forecasts
+const { quantity, quantile } = orderQuantity(
+  { 0.5: 100, 0.7: 150, 0.9: 200 }, // quantile → demand forecast
+  2,  // Cu: loss per unit understock
+  1,  // Co: loss per unit overstock
+);
+// Selects the quantile closest to tsl=2/3 (0.7), returns { quantity: 150, quantile: 0.7 }
+```
+
+**Guarantees:**
+- `quantity` is always an integer (rounded up via `Math.ceil`)
+- Selects the closest quantile to the target service level
+- Throws `Error` if Cu and Co are both non-negative and not both zero
+
+```bash
+npx vitest run tests/unit/newsvendor.test.ts
+```
+
 ## Testing
 
 All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.
@@ -391,7 +421,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (38 total)
+# Run all tests (43 total)
 npx vitest run
 
 # Run individual suites
@@ -401,6 +431,7 @@ npx vitest run tests/unit/jwks.test.ts
 npx vitest run tests/unit/rbac.test.ts
 npx vitest run tests/unit/tenant.test.ts
 npx vitest run tests/unit/connector.test.ts
+npx vitest run tests/unit/newsvendor.test.ts
 npx vitest run tests/integration/auth-flow.test.ts
 ```
 
