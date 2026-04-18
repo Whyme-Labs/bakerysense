@@ -7,6 +7,7 @@ import { POST as signinPOST } from "./src/app/api/auth/signin/route.js";
 import { POST as refreshPOST } from "./src/app/api/auth/refresh/route.js";
 import { POST as signoutPOST } from "./src/app/api/auth/signout/route.js";
 import { GET as meGET } from "./src/app/api/auth/me/route.js";
+import { GET as jwksGET } from "./src/app/api/.well-known/jwks.json/route.js";
 
 const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
 
@@ -39,6 +40,11 @@ export default {
 
 		if (url.pathname === "/api/auth/me") {
 			if (request.method === "GET") return meGET(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		if (url.pathname === "/api/.well-known/jwks.json") {
+			if (request.method === "GET") return jwksGET(request);
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
