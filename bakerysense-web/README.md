@@ -403,3 +403,12 @@ npx vitest run tests/integration/auth-flow.test.ts
 ```
 
 Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
+
+## JWKS rotation cron
+
+Cron runs daily at 03:00 UTC per `wrangler.jsonc`'s `triggers.crons`.
+Handler lives at `scripts/cron/jwks-rotate.ts`. To wire it into the OpenNext
+worker, add the scheduled export to `open-next.config.ts`'s workerWrapper
+once that version is confirmed. For MVP, use the manual endpoint
+`POST /api/internal/rotate-jwks` with header `x-ops-secret: <OPS_ROTATE_SECRET>`
+for on-demand rotation.
