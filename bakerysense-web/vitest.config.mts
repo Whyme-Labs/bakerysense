@@ -10,6 +10,8 @@ export default defineConfig({
 	test: {
 		include: ["tests/**/*.test.ts"],
 		testTimeout: 30000,
+		globalSetup: ["tests/globalSetup.ts"],
+		setupFiles: ["tests/vitestSetup.ts"],
 	},
 	resolve: {
 		alias: { "@": "/src" },
