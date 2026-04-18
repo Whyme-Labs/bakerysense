@@ -19,11 +19,14 @@ def export_booster(booster: lgb.Booster) -> dict[str, Any]:
         "trees": [
           {
             "split_feature": [int, ...],
-            "threshold":     [float, ...],
-            "decision_type": [int, ...],   # 2 = <=, 1 = <, 3 = ==
-            "left_child":    [int, ...],   # non-negative = internal idx; negative = ~leaf_idx
+            "threshold":     [float, ...],     # 0.0 sentinel for categorical nodes
+            "decision_type": [int, ...],        # 2 = <=, 1 = <, 3 = == (categorical)
+            "left_child":    [int, ...],        # non-negative = internal idx; negative = ~leaf_idx
             "right_child":   [int, ...],
-            "leaf_value":    [float, ...]
+            "leaf_value":    [float, ...],
+            "default_left":  [int, ...],        # 1 if NaN/missing goes left, else 0
+            "cat_threshold": [int[] | null, ...]  # per-node: sorted int[] for categorical (dt==3),
+                                                  #           null for numeric
           }
         ]
       }
@@ -32,6 +35,10 @@ def export_booster(booster: lgb.Booster) -> dict[str, Any]:
     arrays indexed by internal node id, with children pointing either at another
     internal node (non-negative index) or at a leaf (~leaf_idx, LightGBM's
     negative-leaf convention).
+
+    Categorical splits use decision_type=="==" and have a threshold like "6||11||13"
+    which is a set of allowed category codes. We parse this into cat_threshold[node]
+    as a sorted array of ints. The JS walker checks: cat_threshold[node].includes(x).
     """
     dump = booster.dump_model()
     feature_names = list(dump["feature_names"])
@@ -55,6 +62,8 @@ def _flatten_tree(root: dict[str, Any]) -> dict[str, list]:
     left: list[int] = []
     right: list[int] = []
     leaf_value: list[float] = []
+    default_left: list[int] = []
+    cat_threshold: list[list[int] | None] = []
 
     internal_counter = [0]
     leaf_counter = [0]
@@ -64,8 +73,21 @@ def _flatten_tree(root: dict[str, Any]) -> dict[str, list]:
             idx = internal_counter[0]
             internal_counter[0] += 1
             split_feature.append(int(node["split_feature"]))
-            threshold.append(float(node["threshold"]))
-            decision_type.append(_decision_code(node.get("decision_type", "<=")))
+            dt_str = node.get("decision_type", "<=")
+            dt_code = _decision_code(dt_str)
+            decision_type.append(dt_code)
+            # default_left: True/False or 1/0 in the dump
+            dl = node.get("default_left", False)
+            default_left.append(1 if dl else 0)
+            if dt_code == 3:
+                # Categorical split: threshold is "a||b||c" of category indices
+                raw_th = str(node["threshold"])
+                cat_set = sorted(int(x) for x in raw_th.split("||") if x)
+                cat_threshold.append(cat_set)
+                threshold.append(0.0)  # sentinel unused for categorical
+            else:
+                threshold.append(float(node["threshold"]))
+                cat_threshold.append(None)
             left.append(0)
             right.append(0)
             lch = walk(node["left_child"])
@@ -88,6 +110,8 @@ def _flatten_tree(root: dict[str, Any]) -> dict[str, list]:
         "left_child": left,
         "right_child": right,
         "leaf_value": leaf_value,
+        "default_left": default_left,
+        "cat_threshold": cat_threshold,
     }
 
 
@@ -133,15 +157,22 @@ def write_parity_fixture(
     features = pd.read_parquet(features_parquet)
     sample = features.sample(n=min(sample_n, len(features)), random_state=seed)
 
+    # Pre-convert categorical columns to numeric codes so JS fixture values are integers
+    sample_numeric = sample.copy()
+    for col in sample_numeric.columns:
+        if str(sample_numeric[col].dtype) == "category":
+            sample_numeric[col] = sample_numeric[col].cat.codes
+
     parity_cases: list[dict] = []
     for q_name in trees_payload["quantiles"]:
         model_path = booster_dir / f"booster_q{q_name}.txt"
         booster = lgb.Booster(model_file=str(model_path))
         feature_cols = booster.feature_name()
-        X = sample[feature_cols].values
-        y_pred = booster.predict(X)
+        # Predict from the original sample (LightGBM accepts category dtype or codes)
+        y_pred = booster.predict(sample[feature_cols])
         for i, row_pred in enumerate(y_pred):
-            row = sample.iloc[i]
+            # Use numeric-coded version for JS fixture
+            row = sample_numeric.iloc[i]
             parity_cases.append({
                 "quantile": q_name,
                 "features": {f: float(row[f]) for f in feature_cols},

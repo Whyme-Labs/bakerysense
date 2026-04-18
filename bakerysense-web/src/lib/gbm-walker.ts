@@ -1,10 +1,12 @@
 export interface TreeArrays {
   split_feature: number[];
   threshold: number[];
-  decision_type: number[];   // 2 = <=, 1 = <, 3 = ==
-  left_child: number[];      // non-negative = internal idx; negative = ~leaf_idx
+  decision_type: number[];             // 2 = <=, 1 = <, 3 = == (categorical bitmask)
+  left_child: number[];                // non-negative = internal idx; negative = ~leaf_idx
   right_child: number[];
   leaf_value: number[];
+  default_left?: number[];             // 1 = NaN/missing goes left, 0 = goes right
+  cat_threshold?: (number[] | null)[]; // per-node: sorted int[] for categorical (dt==3), null otherwise
 }
 
 export interface Model {
@@ -48,7 +50,17 @@ function walkTree(t: TreeArrays, v: number[]): number {
     const th = t.threshold[node];
     const dt = t.decision_type[node];
     const x = v[f];
-    const goLeft = dt === 1 ? x < th : (dt === 3 ? x === th : x <= th);
+    let goLeft: boolean;
+    if (Number.isNaN(x) || x === undefined) {
+      // NaN/missing: use default_left flag if present; default to right
+      goLeft = t.default_left != null ? t.default_left[node] === 1 : false;
+    } else if (dt === 3) {
+      // Categorical split: check if x's integer code is in the allowed set
+      const catSet = t.cat_threshold?.[node];
+      goLeft = catSet != null ? catSet.includes(Math.round(x)) : false;
+    } else {
+      goLeft = dt === 1 ? x < th : x <= th;
+    }
     const next = goLeft ? t.left_child[node] : t.right_child[node];
     if (next < 0) return t.leaf_value[~next];
     node = next;
@@ -78,7 +90,15 @@ export function shapContribs(model: Model, row: Record<string, number>): Record<
       const th = t.threshold[node];
       const dt = t.decision_type[node];
       const x = v[f];
-      const goLeft = dt === 1 ? x < th : (dt === 3 ? x === th : x <= th);
+      let goLeft: boolean;
+      if (Number.isNaN(x) || x === undefined) {
+        goLeft = t.default_left != null ? t.default_left[node] === 1 : false;
+      } else if (dt === 3) {
+        const catSet = t.cat_threshold?.[node];
+        goLeft = catSet != null ? catSet.includes(Math.round(x)) : false;
+      } else {
+        goLeft = dt === 1 ? x < th : x <= th;
+      }
       const chosen = goLeft ? t.left_child[node] : t.right_child[node];
       const other  = goLeft ? t.right_child[node] : t.left_child[node];
       const chosenVal = subtreeAvg(t, chosen);
