@@ -382,6 +382,57 @@ const membership = await loadMembership(env, userId, tenant.id);
 const branches = await loadPermittedBranches(env, membership.id); // string[] | null
 ```
 
+## LightGBM Tree Walker (`src/lib/gbm-walker.ts`)
+
+P2.04: Pure-JS walker that reproduces `booster.predict()` for a single feature row and provides an approximate SHAP helper. Designed to consume the JSON tree format exported by the Python LightGBM exporter (P2.03).
+
+### Exported Types & Functions
+
+```ts
+import { loadTrees, predict, shapContribs } from "@/lib/gbm-walker";
+import type { Model, TreeArrays } from "@/lib/gbm-walker";
+```
+
+| Export | Description |
+|---|---|
+| `TreeArrays` | Interface matching the Python exporter's per-tree arrays (`split_feature`, `threshold`, `decision_type`, `left_child`, `right_child`, `leaf_value`) |
+| `Model` | Top-level model object: `feature_names`, `num_trees`, `trees: TreeArrays[]` |
+| `loadTrees(raw)` | Validates and casts a raw JSON payload (one quantile entry) into `Model`. Throws if shape is invalid. |
+| `predict(model, row)` | Sums leaf values across all trees for a feature row. Missing features default to `0`. Returns `0` for zero-trees models. |
+| `shapContribs(model, row)` | Returns per-feature contribution scores (one key per `feature_name`). Uses a path-traversal heuristic — directional and relative-magnitude are reliable; absolute values are not TreeSHAP-accurate. |
+
+### Node indexing convention
+
+Follows LightGBM's `~leaf_idx` bitwise-NOT convention: a child pointer `< 0` indicates a leaf, and the leaf index is `~pointer` (i.e. `~(-1) === 0`, `~(-2) === 1`). The Python exporter (P2.03) preserves this exactly.
+
+### Decision type encoding
+
+| `decision_type` | Condition |
+|---|---|
+| `2` | `x <= threshold` (default, most splits) |
+| `1` | `x < threshold` |
+| `3` | `x === threshold` |
+
+### SHAP approximation
+
+At each split on the chosen path, `(chosenSubtreeAvg - otherSubtreeAvg) / 2` is attributed to the split feature. Subtree averages are computed via BFS over reachable leaves. This is **not** full TreeSHAP (O(L² × depth)); it is a path-traversal heuristic suitable for merchant-facing explanations ("why is this forecast higher than usual?").
+
+### Usage
+
+```ts
+import treePayload from "./models/q50.json";
+import { loadTrees, predict, shapContribs } from "@/lib/gbm-walker";
+
+const model = loadTrees(treePayload);                // treePayload is one quantile entry
+const yhat  = predict(model, { lag_1: 42, lag_7: 38, dow: 5 });
+const why   = shapContribs(model, { lag_1: 42, lag_7: 38, dow: 5 });
+// why = { lag_1: 1.2, lag_7: 0.8, dow: -0.3 }
+```
+
+```bash
+npx vitest run tests/unit/gbm-walker.test.ts
+```
+
 ## Forecasting & Newsvendor (`src/lib/newsvendor.ts`)
 
 The **newsvendor model** optimizes order quantity based on misalignment costs between overstocking and understocking. Given underage cost (`Cu`) and overage cost (`Co`), it computes a target service level and selects the order quantity from pre-trained demand quantiles.
@@ -421,7 +472,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (43 total)
+# Run all tests (48 total)
 npx vitest run
 
 # Run individual suites
@@ -432,6 +483,7 @@ npx vitest run tests/unit/rbac.test.ts
 npx vitest run tests/unit/tenant.test.ts
 npx vitest run tests/unit/connector.test.ts
 npx vitest run tests/unit/newsvendor.test.ts
+npx vitest run tests/unit/gbm-walker.test.ts
 npx vitest run tests/integration/auth-flow.test.ts
 ```
 
