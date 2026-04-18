@@ -114,3 +114,36 @@ wrangler secret put OPENROUTER_OAUTH_CLIENT_ID
 ```
 
 The same secrets must be available in production for the application to function correctly.
+
+## Authentication
+
+### Password Hashing (`src/lib/auth/argon2.ts`)
+
+BakerySense uses **Argon2id** for password hashing, implemented in pure JavaScript via `@noble/hashes` (no native bindings — fully compatible with Cloudflare Workers).
+
+Parameters (OWASP 2023 minimum):
+
+| Parameter | Value |
+|---|---|
+| Memory cost (`m`) | 19 MiB (19 × 1024 KiB) |
+| Time cost (`t`) | 2 iterations |
+| Parallelism (`p`) | 1 |
+| Hash length | 32 bytes |
+| Salt length | 16 bytes (random per hash) |
+
+Hash format follows the standard PHC string format: `$argon2id$v=19$m=...,t=...,p=...$<base64-salt>$<base64-hash>`
+
+```ts
+import { hashPassword, verifyPassword } from "@/lib/auth/argon2";
+
+const hash = await hashPassword("user-password");        // returns PHC string
+const ok   = await verifyPassword("user-password", hash); // constant-time compare
+```
+
+Dependencies: `@noble/hashes` (argon2id, randomBytes), `@scure/base` (base64 encoding).
+
+### Unit Tests
+
+```bash
+npx vitest run tests/unit/argon2.test.ts
+```

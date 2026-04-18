@@ -16,6 +16,7 @@
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@opennextjs/cloudflare": "^1.19.1",
+    "@scure/base": "^2.0.0",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.2",
     "next": "16.2.3",
