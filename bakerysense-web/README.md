@@ -231,18 +231,59 @@ Retired keys remain verifiable for **7 days** (`RETIRE_GRACE_MS`). After that, `
 npx vitest run tests/unit/jwks.test.ts
 ```
 
+## RBAC (`src/lib/rbac.ts`)
+
+BakerySense enforces role-based access control with two helper functions:
+
+| Function | Description |
+|---|---|
+| `requireRole(claims, allowed)` | Throws `ForbiddenError` (HTTP 403) if the JWT role is not in `allowed`. `platform_admin` bypasses all checks. |
+| `assertBranchAccess(claims, branchId)` | Throws `NotFoundError` (HTTP 404) if the JWT does not permit access to `branchId`. `platform_admin` and `tenant_admin` bypass; `branches: null` means unrestricted within tenant. |
+
+```ts
+import { requireRole, assertBranchAccess, ForbiddenError, NotFoundError } from "@/lib/rbac";
+
+// In an API route or middleware:
+requireRole(claims, ["tenant_admin", "branch_manager"]);  // throws ForbiddenError if denied
+assertBranchAccess(claims, "branch-uuid");                 // throws NotFoundError if denied
+```
+
+Error classes carry a `.status` property matching the HTTP status code for easy response mapping.
+
+## Tenant Helpers (`src/lib/tenant.ts`)
+
+Three database helpers for resolving tenant context from JWT claims:
+
+| Function | Description |
+|---|---|
+| `resolveTenantBySlug(env, slug)` | Looks up a tenant by URL slug. Returns `null` if not found. |
+| `loadMembership(env, userId, tenantId)` | Fetches the membership row for a (user, tenant) pair. Returns `null` if the user has no membership in that tenant. |
+| `loadPermittedBranches(env, membershipId)` | Returns the list of branch IDs the membership can access, or `null` if access is unrestricted (no `branch_access` rows for that membership). |
+
+```ts
+import { resolveTenantBySlug, loadMembership, loadPermittedBranches } from "@/lib/tenant";
+
+const tenant = await resolveTenantBySlug(env, "favorita"); // { id, slug, name, ... } | null
+const membership = await loadMembership(env, userId, tenant.id);
+const branches = await loadPermittedBranches(env, membership.id); // string[] | null
+```
+
 ## Testing
 
 All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.
 
+D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.ts`) that reads the `drizzle/` SQL files using `readD1Migrations` and injects them into the Worker context through `tests/vitestSetup.ts`, making `env.MIGRATIONS` available to `applyD1Migrations` calls in tests.
+
 ```bash
-# Run all tests (8 total: argon2 × 3, JWT × 3, JWKS × 2)
+# Run all tests (18 total)
 npx vitest run
 
 # Run individual suites
 npx vitest run tests/unit/argon2.test.ts
 npx vitest run tests/unit/jwt.test.ts
 npx vitest run tests/unit/jwks.test.ts
+npx vitest run tests/unit/rbac.test.ts
+npx vitest run tests/unit/tenant.test.ts
 ```
 
 Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
