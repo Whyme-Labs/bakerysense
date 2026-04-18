@@ -382,6 +382,217 @@ const membership = await loadMembership(env, userId, tenant.id);
 const branches = await loadPermittedBranches(env, membership.id); // string[] | null
 ```
 
+## LightGBM Tree Walker (`src/lib/gbm-walker.ts`)
+
+P2.04: Pure-JS walker that reproduces `booster.predict()` for a single feature row and provides an approximate SHAP helper. Designed to consume the JSON tree format exported by the Python LightGBM exporter (P2.03).
+
+### Exported Types & Functions
+
+```ts
+import { loadTrees, predict, shapContribs } from "@/lib/gbm-walker";
+import type { Model, TreeArrays } from "@/lib/gbm-walker";
+```
+
+| Export | Description |
+|---|---|
+| `TreeArrays` | Interface matching the Python exporter's per-tree arrays (`split_feature`, `threshold`, `decision_type`, `left_child`, `right_child`, `leaf_value`) |
+| `Model` | Top-level model object: `feature_names`, `num_trees`, `trees: TreeArrays[]` |
+| `loadTrees(raw)` | Validates and casts a raw JSON payload (one quantile entry) into `Model`. Throws if shape is invalid. |
+| `predict(model, row)` | Sums leaf values across all trees for a feature row. Missing features default to `0`. Returns `0` for zero-trees models. |
+| `shapContribs(model, row)` | Returns per-feature contribution scores (one key per `feature_name`). Uses a path-traversal heuristic — directional and relative-magnitude are reliable; absolute values are not TreeSHAP-accurate. |
+
+### Node indexing convention
+
+Follows LightGBM's `~leaf_idx` bitwise-NOT convention: a child pointer `< 0` indicates a leaf, and the leaf index is `~pointer` (i.e. `~(-1) === 0`, `~(-2) === 1`). The Python exporter (P2.03) preserves this exactly.
+
+### Decision type encoding
+
+| `decision_type` | Condition |
+|---|---|
+| `2` | `x <= threshold` (default, most splits) |
+| `1` | `x < threshold` |
+| `3` | `x === threshold` |
+
+### SHAP approximation
+
+At each split on the chosen path, `(chosenSubtreeAvg - otherSubtreeAvg) / 2` is attributed to the split feature. Subtree averages are computed via BFS over reachable leaves. This is **not** full TreeSHAP (O(L² × depth)); it is a path-traversal heuristic suitable for merchant-facing explanations ("why is this forecast higher than usual?").
+
+### Usage
+
+```ts
+import treePayload from "./models/q50.json";
+import { loadTrees, predict, shapContribs } from "@/lib/gbm-walker";
+
+const model = loadTrees(treePayload);                // treePayload is one quantile entry
+const yhat  = predict(model, { lag_1: 42, lag_7: 38, dow: 5 });
+const why   = shapContribs(model, { lag_1: 42, lag_7: 38, dow: 5 });
+// why = { lag_1: 1.2, lag_7: 0.8, dow: -0.3 }
+```
+
+```bash
+npx vitest run tests/unit/gbm-walker.test.ts
+```
+
+## Forecasting & Newsvendor (`src/lib/newsvendor.ts`)
+
+The **newsvendor model** optimizes order quantity based on misalignment costs between overstocking and understocking. Given underage cost (`Cu`) and overage cost (`Co`), it computes a target service level and selects the order quantity from pre-trained demand quantiles.
+
+### API
+
+```ts
+import { targetServiceLevel, orderQuantity } from "@/lib/newsvendor";
+
+// Compute target service level: probability of demand >= order quantity
+const tsl = targetServiceLevel(cu, co); // returns Cu / (Cu + Co)
+
+// Select order quantity from quantile forecasts
+const { quantity, quantile } = orderQuantity(
+  { 0.5: 100, 0.7: 150, 0.9: 200 }, // quantile → demand forecast
+  2,  // Cu: loss per unit understock
+  1,  // Co: loss per unit overstock
+);
+// Selects the quantile closest to tsl=2/3 (0.7), returns { quantity: 150, quantile: 0.7 }
+```
+
+**Guarantees:**
+- `quantity` is always an integer (rounded up via `Math.ceil`)
+- Selects the closest quantile to the target service level
+- Throws `Error` if Cu and Co are both non-negative and not both zero
+
+```bash
+npx vitest run tests/unit/newsvendor.test.ts
+```
+
+## Feature Store (`src/lib/features.ts`)
+
+The **feature store** loads pre-computed ML features from Cloudflare R2 and caches them in memory per Worker instance. It supports per-tenant, per-family, per-date feature vectors for use by forecasting models.
+
+### API
+
+```ts
+import { loadFeatures, getFeatureRow, loadTenantModels, type FeatureStore, type TenantModels } from "@/lib/features";
+
+// Load feature store for a tenant (cached in memory)
+const store = await loadFeatures(env, "tenant-id");
+
+// Feature store structure
+interface FeatureStore {
+  last_date: string;                                       // Most recent date with features
+  per_branch_family_date: Record<string, Record<string, number>>; // Keys: "branchId|family|date"
+}
+
+// Retrieve feature row (or null if not found)
+const row = getFeatureRow(store, "brn1", "BAGUETTE", "2024-12-31");
+// row = { lag_1: 200, lag_7: 210, rolling_mean_7: 205 } or null
+
+// Load trained quantile models from R2 (cached in memory)
+const models = await loadTenantModels(env, "tenant-id");
+// models.quantiles["0.5"] is the raw tree payload for the 0.5 quantile model
+const m = loadTrees(models.quantiles["0.5"]);
+```
+
+**Caching Behavior:**
+- First load for a tenant: fetches from R2 at key `tenant:<tenantId>/features/latest.json`
+- Model cache fetches from R2 at key `tenant:<tenantId>/trees/latest.json`
+- Subsequent loads: returns cached promise (same reference), avoiding duplicate R2 calls
+- On error: cache is cleared, allowing retry on next request
+- Cold starts: cache is reset (in-memory, per Worker instance)
+
+**Storage format:** Standard JSON with flat namespace (`branchId|family|date` as composite keys).
+
+```bash
+npx vitest run tests/unit/features.test.ts
+```
+
+## Tool Registry (`src/lib/tools/`)
+
+The **tool registry** exposes five LLM-callable tools for the forecasting chat assistant. All tools use Zod for input validation; the central `dispatch` function returns a structured error object (never throws) on unknown tools or validation failures.
+
+### Tools
+
+| Tool | Description |
+|---|---|
+| `list_skus` | Returns SKUs known to the forecaster for a given branch |
+| `forecast` | Returns quantile forecasts and the newsvendor-optimal bake quantity for a SKU-day |
+| `explain_drivers` | Returns top approximate-SHAP feature contributions for a SKU-day forecast |
+| `waste_risk` | Estimates the probability that a batch leaves more than N% unsold |
+| `suggest_markdowns` | Given end-of-day remaining inventory, returns discount percentages per SKU |
+
+### Schema rule (Gemma 4 compatibility)
+
+All tool `parameters` schemas must use **flat top-level properties** — no nested structs. Record-valued fields (e.g. `inventory`) are allowed only when `additionalProperties.type` is a primitive (`string`, `number`, `integer`, `boolean`). The unit test `tools-dispatch.test.ts` enforces this invariant automatically.
+
+### Usage
+
+```ts
+import { dispatch, TOOL_REGISTRY, TOOL_SCHEMAS } from "@/lib/tools";
+import type { ToolContext } from "@/lib/tools";
+
+const ctx: ToolContext = {
+  env,
+  tenantId: "t1",
+  userId: "u1",
+  permittedBranches: null,       // null = all branches
+  defaultBranchId: "brn1",
+  costRatio: { cu: 2, co: 1 },  // underage cost / overage cost
+  quantiles: [0.1, 0.3, 0.5, 0.7, 0.9],
+};
+
+// Dispatch a tool call (never throws — errors are returned as { error: string })
+const result = await dispatch("forecast", { sku: "BAGUETTE", on_date: "2025-01-01", branch_id: "brn1" }, ctx);
+
+// All tool schemas (for passing to LLM)
+const schemas = TOOL_SCHEMAS;
+```
+
+```bash
+npx vitest run tests/unit/tools-dispatch.test.ts
+```
+
+## Chat API (`src/app/api/chat/`)
+
+BakerySense exposes a conversational interface backed by a Cloudflare Queue consumer. All routes require a valid session; mutating routes additionally require a CSRF token.
+
+### POST /api/chat
+
+Creates or continues a chat session, enqueues a turn to `CHAT_QUEUE`, and returns a 202 with stream URL.
+
+**Request body:**
+
+```json
+{
+  "branchId": "brn1",
+  "message": "What should I bake tomorrow?",
+  "sessionId": "s_..." // optional — omit to start a new session
+}
+```
+
+**Response (202):**
+
+```json
+{
+  "sessionId": "s_...",
+  "turnId": "t_...",
+  "streamUrl": "/api/chat/stream/<turnId>?s=<sessionId>"
+}
+```
+
+### GET /api/chat/stream/:turnId?s=:sessionId (SSE)
+
+Long-polls KV every second (up to 150 s, within `maxDuration: 180`) and streams turn events as `text/event-stream`. Emits a `{ type: "final", ... }` frame when the turn reaches `done` or `failed`, then closes.
+
+### GET /api/chat/turn/:turnId?s=:sessionId
+
+One-shot fetch of the full `TurnState` — useful for reconnects where the SSE stream was lost.
+
+### POST /api/chat/reset
+
+Deletes a chat session from KV (accepts `{ sessionId: string }` body). No-op if `sessionId` is absent.
+
+### Queue consumer wiring
+
+The `CHAT_QUEUE` binding is declared in `wrangler.jsonc`. The queue consumer default export (`src/lib/queue-consumer.ts`) is **not** wired into the OpenNext build in this task — wiring requires editing `open-next.config.ts` and is deferred to deploy-time. Integration tests in P2.14 invoke the consumer directly.
+
 ## Testing
 
 All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.
@@ -391,7 +602,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (38 total)
+# Run all tests (76 total)
 npx vitest run
 
 # Run individual suites
@@ -401,10 +612,30 @@ npx vitest run tests/unit/jwks.test.ts
 npx vitest run tests/unit/rbac.test.ts
 npx vitest run tests/unit/tenant.test.ts
 npx vitest run tests/unit/connector.test.ts
+npx vitest run tests/unit/newsvendor.test.ts
+npx vitest run tests/unit/gbm-walker.test.ts
+npx vitest run tests/unit/features.test.ts
+npx vitest run tests/unit/tools-dispatch.test.ts
 npx vitest run tests/integration/auth-flow.test.ts
+npx vitest run tests/integration/chat-turn.test.ts
 ```
 
 Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
+
+### Chat integration tests (`tests/integration/chat-turn.test.ts`)
+
+Six tests covering the P2 chat API happy path via Miniflare:
+
+| Test | Assertion |
+|---|---|
+| `returns 401 without a session` | Unauthenticated POST is rejected |
+| `returns 403 without CSRF` | Missing `X-CSRF-Token` is rejected |
+| `returns 202 with turnId + streamUrl` | Full authenticated POST returns expected IDs |
+| `creates a KV turn record with status=queued` | KV turn + session records are written |
+| `validates body — rejects empty message` | Zod schema enforces non-empty message |
+| `GET /api/chat/turn/:turnId returns the queued turn state` | Reconnect poll works immediately after POST |
+
+Note on Miniflare queue dispatch: `CHAT_QUEUE.send()` in the test environment uses Miniflare's in-memory queue producer (declared in `wrangler.jsonc` `env.test.queues.producers`). The queue message is enqueued but the consumer (`src/lib/queue-consumer.ts`) is **not** invoked in-process by Miniflare — full consumer SSE end-to-end requires a separate Worker consumer binding, which is deferred to deploy-time. The tests assert 202 + KV record correctness; the SSE streaming path is validated indirectly via `GET /api/chat/turn/:turnId` returning `status: queued`.
 
 ## JWKS rotation cron
 
@@ -447,7 +678,7 @@ BakerySense uses the **double-submit cookie pattern**:
 2. Client-side JavaScript reads the `bs_csrf` cookie and includes it as `X-CSRF-Token` on every mutating request.
 3. Mutating authenticated routes (connector CRUD, refresh) verify the header via `verifyCsrf` before processing.
 
-Routes enforcing CSRF: `POST /api/connector`, `DELETE /api/connector/:id`, `POST /api/connector/:id/default`, `POST /api/auth/refresh`.
+Routes enforcing CSRF: `POST /api/connector`, `DELETE /api/connector/:id`, `POST /api/connector/:id/default`, `POST /api/auth/refresh`, `POST /api/chat`, `POST /api/chat/reset`.
 
 Signout does **not** require CSRF (worst case an attacker logs a user out — annoying but not a security breach).
 

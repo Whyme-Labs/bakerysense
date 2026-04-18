@@ -64,6 +64,22 @@
 	"triggers": {
 		"crons": []
 	},
+	"queues": {
+		"producers": [
+			{ "binding": "CHAT_QUEUE", "queue": "chat-queue" }
+		],
+		"consumers": [
+			{
+				"queue": "chat-queue",
+				"max_batch_size": 1,
+				"max_retries": 3,
+				"dead_letter_queue": "chat-dlq"
+			}
+		]
+	},
+	"r2_buckets": [
+		{ "binding": "MODELS", "bucket_name": "bakerysense-models" }
+	],
 	/**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
@@ -84,6 +100,14 @@
 					"database_id": "0f9b74b1-fa75-4ff1-bbfb-87bd0e377890",
 					"migrations_dir": "drizzle"
 				}
+			],
+			"queues": {
+				"producers": [
+					{ "binding": "CHAT_QUEUE", "queue": "chat-queue-test" }
+				]
+			},
+			"r2_buckets": [
+				{ "binding": "MODELS", "bucket_name": "bakerysense-models-dev" }
 			],
 			"vars": {
 				"JWKS_ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",

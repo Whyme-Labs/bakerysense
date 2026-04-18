@@ -12,16 +12,22 @@ declare namespace Cloudflare {
 interface CloudflareEnv extends Cloudflare.Env {
 	// KV binding (kv_namespaces[0])
 	KV: KVNamespace;
+	// Queue bindings
+	CHAT_QUEUE: Queue;
+	// R2 bucket bindings
+	MODELS: R2Bucket;
 	// Secrets / vars
 	JWKS_ENCRYPTION_KEY: string;
 	CONNECTOR_MEK: string;
 	SESSION_SIGNING_KEY: string;
 }
 
-// Augment Cloudflare.Env so `env` from cloudflare:test also carries KV + secrets
+// Augment Cloudflare.Env so `env` from cloudflare:test also carries KV + Queue + R2 + secrets
 declare namespace Cloudflare {
 	interface Env {
 		KV: KVNamespace;
+		CHAT_QUEUE: Queue;
+		MODELS: R2Bucket;
 		JWKS_ENCRYPTION_KEY: string;
 		CONNECTOR_MEK: string;
 		SESSION_SIGNING_KEY: string;

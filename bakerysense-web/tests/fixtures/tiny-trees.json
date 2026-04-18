@@ -1,0 +1,27 @@
+{
+  "generated": "fixture",
+  "quantiles": {
+    "0.5": {
+      "feature_names": ["x", "y"],
+      "num_trees": 2,
+      "trees": [
+        {
+          "split_feature": [0],
+          "threshold":     [0.0],
+          "decision_type": [2],
+          "left_child":    [-1],
+          "right_child":   [-2],
+          "leaf_value":    [1.0, 2.0]
+        },
+        {
+          "split_feature": [1],
+          "threshold":     [10.0],
+          "decision_type": [2],
+          "left_child":    [-1],
+          "right_child":   [-2],
+          "leaf_value":    [0.5, -0.5]
+        }
+      ]
+    }
+  }
+}
