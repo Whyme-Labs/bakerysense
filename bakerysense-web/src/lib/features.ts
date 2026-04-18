@@ -32,3 +32,26 @@ export function getFeatureRow(
 export function __resetFeaturesCacheForTest(): void {
   cache.clear();
 }
+
+export interface TenantModels {
+  quantiles: Record<string, any>;  // raw payload keyed by quantile string ("0.1", "0.3", ...)
+}
+
+const modelCache = new Map<string, Promise<TenantModels>>();
+
+export async function loadTenantModels(env: CloudflareEnv, tenantId: string): Promise<TenantModels> {
+  const hit = modelCache.get(tenantId);
+  if (hit) return hit;
+  const key = `tenant:${tenantId}/trees/latest.json`;
+  const p = (async () => {
+    const obj = await env.MODELS.get(key);
+    if (!obj) throw new Error(`models not found: ${key}`);
+    const text = await obj.text();
+    const parsed = JSON.parse(text) as any;
+    return { quantiles: parsed.quantiles ?? parsed } as TenantModels;
+  })();
+  modelCache.set(tenantId, p);
+  try { return await p; } catch (e) { modelCache.delete(tenantId); throw e; }
+}
+
+export function __resetModelCacheForTest(): void { modelCache.clear(); }
