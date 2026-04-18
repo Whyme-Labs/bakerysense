@@ -463,6 +463,41 @@ const { quantity, quantile } = orderQuantity(
 npx vitest run tests/unit/newsvendor.test.ts
 ```
 
+## Feature Store (`src/lib/features.ts`)
+
+The **feature store** loads pre-computed ML features from Cloudflare R2 and caches them in memory per Worker instance. It supports per-tenant, per-family, per-date feature vectors for use by forecasting models.
+
+### API
+
+```ts
+import { loadFeatures, getFeatureRow, type FeatureStore } from "@/lib/features";
+
+// Load feature store for a tenant (cached in memory)
+const store = await loadFeatures(env, "tenant-id");
+
+// Feature store structure
+interface FeatureStore {
+  last_date: string;                                       // Most recent date with features
+  per_branch_family_date: Record<string, Record<string, number>>; // Keys: "branchId|family|date"
+}
+
+// Retrieve feature row (or null if not found)
+const row = getFeatureRow(store, "brn1", "BAGUETTE", "2024-12-31");
+// row = { lag_1: 200, lag_7: 210, rolling_mean_7: 205 } or null
+```
+
+**Caching Behavior:**
+- First load for a tenant: fetches from R2 at key `tenant:<tenantId>/features/latest.json`
+- Subsequent loads: returns cached promise (same reference), avoiding duplicate R2 calls
+- On error: cache is cleared, allowing retry on next request
+- Cold starts: cache is reset (in-memory, per Worker instance)
+
+**Storage format:** Standard JSON with flat namespace (`branchId|family|date` as composite keys).
+
+```bash
+npx vitest run tests/unit/features.test.ts
+```
+
 ## Testing
 
 All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.
@@ -472,7 +507,7 @@ D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.
 Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
 
 ```bash
-# Run all tests (48 total)
+# Run all tests (54 total)
 npx vitest run
 
 # Run individual suites
@@ -484,6 +519,7 @@ npx vitest run tests/unit/tenant.test.ts
 npx vitest run tests/unit/connector.test.ts
 npx vitest run tests/unit/newsvendor.test.ts
 npx vitest run tests/unit/gbm-walker.test.ts
+npx vitest run tests/unit/features.test.ts
 npx vitest run tests/integration/auth-flow.test.ts
 ```
 
