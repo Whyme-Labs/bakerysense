@@ -94,6 +94,38 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// POST /api/chat
+		if (url.pathname === "/api/chat") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/chat/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/chat/stream/:turnId
+		const mChatStream = url.pathname.match(/^\/api\/chat\/stream\/([^/]+)$/);
+		if (mChatStream && request.method === "GET") {
+			const mod = await import("./src/app/api/chat/stream/[turnId]/route.ts");
+			return mod.GET(request, { params: Promise.resolve({ turnId: mChatStream[1] }) });
+		}
+
+		// GET /api/chat/turn/:turnId
+		const mChatTurn = url.pathname.match(/^\/api\/chat\/turn\/([^/]+)$/);
+		if (mChatTurn && request.method === "GET") {
+			const mod = await import("./src/app/api/chat/turn/[turnId]/route.ts");
+			return mod.GET(request, { params: Promise.resolve({ turnId: mChatTurn[1] }) });
+		}
+
+		// POST /api/chat/reset
+		if (url.pathname === "/api/chat/reset") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/chat/reset/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };
