@@ -347,7 +347,7 @@ OpenRouter preset starts a PKCE flow (`/auth?response_type=code&...`). The
 exchange response (a scoped token) becomes the connector's
 `encryptedCredential`. The master API key never touches our storage.
 Verification note — see §16 — confirm exact scopes/lifetime of the
-OpenRouter OAuth response on day 1.
+OpenRouter OAuth response on day 1 (see §17).
 
 **Encryption at rest:** every connector blob's `encryptedCredential` is
 AES-256-GCM with a random IV using a Worker secret `CONNECTOR_MEK`. Ciphertext
@@ -798,7 +798,173 @@ not redistribute the raw CSV; only derived aggregates (trees, feature
 JSON) ship with the app. Writeup cites the source. Own-code is CC-BY-4.0
 per hackathon Rules §2.5.
 
-## 14. Deployment
+## 14. Feedback loop and retraining
+
+### 14.1. Principle
+
+BakerySense is only valuable to a merchant if its forecasts get better with
+their own sales history. The initial shipped model trains on Favorita data
+— public, real, but not this bakery's. The platform must capture what
+actually happened each day and periodically retrain on the accumulated
+tenant-specific actuals. Without this, the product is a static calculator.
+
+True online learning (per-sample gradient updates) doesn't fit LightGBM
+tree ensembles, and no production retail forecaster does it per-sample.
+The industry pattern — **weekly batch retrain on accumulated actuals** —
+is what we implement. The language "online learning" in retail-forecasting
+usage means this closed feedback loop, not strict online algorithms.
+
+### 14.2. Actuals capture
+
+A tenant-scoped D1 table accumulates one row per (branch, family, date)
+triple with the merchant's own ground truth:
+
+```
+daily_actuals
+  id text pk,
+  tenant_id text not null references tenants(id),
+  branch_id text not null references branches(id),
+  family text not null,                          -- SKU / product family
+  date text not null,                            -- ISO YYYY-MM-DD
+  recommended_bake integer,                      -- what our model said
+  actual_bake integer,                           -- what they baked
+  actual_sales integer,                          -- what they sold
+  waste_units integer,                           -- unsold at end of day
+  source text not null check(source in
+    ('manual','close_out_photo','pos_import')),
+  captured_by_user_id text references users(id),
+  captured_at integer not null,
+  unique(tenant_id, branch_id, family, date)
+```
+
+**Entry points** (in priority order by realism):
+
+1. **"Close out day" form** on the dashboard — one row per SKU-branch, the
+   merchant enters `actual_bake` + `actual_sales` at end of day. 30-second
+   operation for a small bakery; skippable per SKU.
+2. **Close-out photo path** — extends `/t/[slug]/display-case` into a
+   bookend pattern: start-of-day photo (optional, captures batch size) and
+   end-of-day photo (derives waste = start_count + bakes − end_count).
+   Pre-fills the form, merchant just confirms.
+3. **CSV import** via a drag-drop on `/t/[slug]/admin/retraining` — for
+   bakeries with existing sales records to backfill history. Maps CSV
+   columns to the schema; audit-logged.
+4. **POS integration** (stub for MVP; documented extension point) — a
+   webhook endpoint that accepts structured sales from Square, Toast,
+   Lightspeed, etc. Post-hackathon.
+
+Every capture writes an audit_log entry (`actuals.recorded`) and, if the
+forecast for that (branch, family, date) exists, computes and stores the
+per-row absolute error for immediate quality surfacing.
+
+### 14.3. Retraining pipeline
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Cloudflare Cron Worker  (weekly: Sun 02:00 UTC per tenant)    │
+│   ├─ enumerate tenants with >= 30 days of daily_actuals       │
+│   └─ enqueue retraining jobs on retrain-queue (one per tenant)│
+└──────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+          retrain-queue  →  Cloudflare Container  (Python)
+                              ├─ pull daily_actuals + feature snapshot
+                              │   for this tenant from D1 / R2
+                              ├─ run training (same scripts that built
+                              │   the initial model: LightGBM × 7
+                              │   quantiles, identical hyperparameters)
+                              ├─ validate: rolling MAE on the last
+                              │   14 days must not regress by > 10 %
+                              ├─ export trees JSON + features JSON
+                              │   to R2 under
+                              │   models/tenant:<tid>/v<n>/...
+                              └─ write KV pointer
+                                 model:active:<tid>  →  { version:<n>,
+                                                          treesR2Key,
+                                                          featuresR2Key,
+                                                          trainedAt,
+                                                          rollingMae }
+```
+
+- **KV pointer** gets read on Worker cold-start and on an explicit
+  cache-bust after retrain completes. Workers invalidate their in-memory
+  tree cache when they see a bumped version.
+- **Rollback**: if the new version regresses validation by > 10 %,
+  container aborts before publishing and logs to the tenant's audit log;
+  old version remains active.
+- **Cadence**: weekly for MVP (captures weekly seasonality), nightly if
+  operational budget permits (Cloudflare Container cost is per-invocation).
+- **Why a Container, not a Worker?** LightGBM is a compiled C++ library;
+  Python retraining runs in CPython; neither fits in a Worker. This is
+  exactly the compute-placement rule from §2: Python escape hatch for
+  training; the runtime inference path stays in the Worker with the pure-JS
+  tree walker.
+
+### 14.4. Quality surfacing
+
+- **Rolling metrics card on the dashboard** — per-SKU rolling WAPE over
+  the last 7 / 28 days, computed from `daily_actuals` joined with saved
+  forecasts. Shows trend arrow (improving / flat / regressing).
+- **Drift alert** — if the rolling 14-day WAPE for a SKU exceeds 1.5× the
+  holdout baseline established at training time, surface a banner on the
+  SKU detail page: "Model accuracy has drifted for this product. Consider
+  retraining or adding more recent actuals." Emits audit_log
+  `drift.detected`.
+- **"Forecast was wrong" button** on each dashboard row → opens a small
+  form to capture the real number → writes a `daily_actuals` row and
+  tags it `source=manual, priority=true` so the next retrain weights it
+  extra.
+- **Per-tenant retrain history** on `/t/[slug]/admin/retraining` —
+  timeline of model versions with rolling MAE at training time, ability
+  to manually trigger a retrain, ability to view which SKUs improved /
+  regressed between versions.
+
+### 14.5. Schema and KV additions (summary)
+
+New D1 table: `daily_actuals` (above).
+
+New KV keys:
+
+```
+model:active:<tenantId>       → { version, treesR2Key, featuresR2Key,
+                                  trainedAt, rollingMae }
+model:versions:<tenantId>     → [{ version, trainedAt, metrics }, ...]
+retrain:last:<tenantId>       → { status, startedAt, finishedAt,
+                                  outcome:'published'|'aborted', reason? }
+```
+
+New R2 layout:
+
+```
+bakerysense-models/
+  tenant:<tid>/v<n>/trees/q*.json
+  tenant:<tid>/v<n>/features/latest.json
+  tenant:<tid>/versions.json
+```
+
+### 14.6. New page + components
+
+- `/t/[slug]/admin/retraining` (tenant_admin)
+- `<RetrainingHistory>` — version timeline + metrics
+- `<TriggerRetrainButton>` — manual retrain dispatch
+- `<CloseOutDayDialog>` — the merchant close-out form, invoked from the
+  dashboard header
+- `<QualityBadge>` — rolling-WAPE indicator on the dashboard and SKU detail
+- `<DriftBanner>` — surfaced on SKU detail when thresholds are crossed
+- `<ReportWrongForecastButton>` — inline on each dashboard row
+
+### 14.7. What this unlocks post-MVP
+
+- Tenant-specific model variants (each tenant's model diverges as their
+  actuals accumulate — material quality gain after ~3 months of data)
+- TS foundation model fine-tune (TimesFM / Timer-XL / Sundial) on
+  tenant-specific data in the same Container pipeline
+- Active learning — the "forecast was wrong" button feeds a priority queue
+  the next retrain weights more heavily
+- Federated / privacy-preserving training where tenant data never leaves
+  the Container (post-hackathon; listed in scope boundaries)
+
+## 15. Deployment
 
 - **Dev:** `cd bakerysense-web && npm run dev` alongside `wrangler dev` for
   API + Queues simulation. Local D1 via Miniflare.
@@ -809,7 +975,7 @@ per hackathon Rules §2.5.
   `JWKS_ENCRYPTION_KEY`
 - **Cron:** one cron Worker for JWKS rotation (daily 03:00 UTC)
 
-## 15. Scope boundaries (explicit non-goals for MVP)
+## 16. Scope boundaries (explicit non-goals for MVP)
 
 | Out of scope | Why | Reintroduce when |
 |---|---|---|
@@ -832,7 +998,7 @@ per hackathon Rules §2.5.
 | Envelope encryption with password-derived DEK | Research shows rare outside password managers; blocks recovery on password reset | Enterprise tier if required |
 | Local Ollama / LM Studio first-class connector (browser → localhost bypass of Worker) | Doubles code paths | Post-MVP; `ollama-tunnel` preset with cloudflared is the MVP workaround |
 
-## 16. Open verification items (to confirm on day 1 of implementation)
+## 17. Open verification items (to confirm on day 1 of implementation)
 
 1. **OpenRouter lists Gemma 4 today** under a stable model id (e.g.,
    `google/gemma-4-e4b-it`). If not, temporary fallback preset with a TODO
@@ -860,7 +1026,7 @@ per hackathon Rules §2.5.
    question produces the same numeric output it would have without
    compaction (tool results are deterministic).
 
-## 17. Success criteria
+## 18. Success criteria
 
 The spec is a success if, by 2026-05-18 at 23:59 UTC, we can:
 
@@ -882,7 +1048,7 @@ The spec is a success if, by 2026-05-18 at 23:59 UTC, we can:
 
 Anything less and the submission is weaker than the plan.
 
-## 18. Change log
+## 19. Change log
 
 - **2026-04-18** — initial design, approved in brainstorming session
 - **2026-04-18** — revision: generalized from single-vendor BYOK to
@@ -894,8 +1060,13 @@ Anything less and the submission is weaker than the plan.
   8 non-negotiable implementation guardrails derived from Gemma 4 docs +
   HF blog + Unsloth guide; added Section 6.4 (context compaction) with a
   hybrid structured-state + summarization strategy
+- **2026-04-18** — revision: added Section 14 (Feedback loop and retraining)
+  — daily_actuals capture, weekly batch retrain via Cloudflare Cron +
+  Cloudflare Container, model versioning in R2/KV, quality surfacing and
+  drift alerts, admin/retraining page. Shifted phasing note to 5 plans
+  (added P4 Feedback loop). Renumbered subsequent sections.
 
-## 19. References
+## 20. References
 
 - Python-side design: `docs/architecture.md` (forecaster / decision / agent
   layers) and `src/bakerysense/` source
@@ -906,13 +1077,15 @@ Anything less and the submission is weaker than the plan.
 - @opennextjs/cloudflare adapter: <https://opennext.js.org/cloudflare>
 - Favorita dataset: <https://www.kaggle.com/competitions/store-sales-time-series-forecasting>
 
-## 20. Implementation phasing note
+## 21. Implementation phasing note
 
 This spec describes the full target. The writing-plans skill (next step
 after this spec is approved) will decompose it into phased plans — likely
-four: **P1 Foundation** (D1 schema, Drizzle, auth, RBAC, multi-tenant
-middleware, JWKS rotation), **P2 Forecasting Worker path** (GBM walker,
-feature store, tool registry, queue consumer, SSE stream), **P3 UI pages**
-(public + authenticated + admin), **P4 E2E + video production**. Each phase
-has its own success criteria and test bar; P1 must finish before P2 and P3
-can proceed in parallel.
+five: **P1 Foundation** (D1 schema, Drizzle, auth, RBAC, multi-tenant
+middleware, JWKS rotation, connector model), **P2 Forecasting Worker path**
+(GBM walker, feature store, tool registry, queue consumer, SSE stream),
+**P3 UI pages** (public + authenticated + admin incl. connectors),
+**P4 Feedback loop** (actuals capture, retrain pipeline via Cloudflare
+Container, quality surfacing, admin/retraining page), **P5 E2E + video
+production**. P1 must finish before any of P2–P4; P2, P3, and P4 can
+proceed in parallel; P5 depends on P2+P3 landing.
