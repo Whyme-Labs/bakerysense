@@ -45,3 +45,33 @@ To learn more about Next.js, take a look at the following resources:
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Environment & Secrets
+
+### Local Development
+
+Local development uses `.dev.vars` (automatically loaded by `wrangler dev`). This file contains:
+
+- `SESSION_SIGNING_KEY`: Random 32-byte base64 key for JWT session signing
+- `JWKS_ENCRYPTION_KEY`: Random 32-byte base64 key for JWKS encryption
+- `CONNECTOR_MEK`: Random 32-byte base64 key for connector encryption
+- `OPS_ROTATE_SECRET`: Random 32-byte base64 key for operations rotation
+- `OPENROUTER_API_KEY`: Placeholder for local testing (update with real key for AI features)
+- `OPENROUTER_OAUTH_CLIENT_ID`: Placeholder for local testing
+
+`.dev.vars` is gitignored and should never be committed to version control.
+
+### Production Deployment
+
+Before deploying to production, set all secrets using `wrangler secret put`:
+
+```bash
+wrangler secret put SESSION_SIGNING_KEY
+wrangler secret put JWKS_ENCRYPTION_KEY
+wrangler secret put CONNECTOR_MEK
+wrangler secret put OPS_ROTATE_SECRET
+wrangler secret put OPENROUTER_API_KEY
+wrangler secret put OPENROUTER_OAUTH_CLIENT_ID
+```
+
+The same secrets must be available in production for the application to function correctly.

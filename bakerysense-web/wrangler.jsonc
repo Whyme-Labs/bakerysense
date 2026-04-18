@@ -9,6 +9,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "bakerysense-web",
+	"account_id": "1e0170aaabc90ecf5f466128d1f0466a",
 	"main": ".open-next/worker.js",
 	"compatibility_date": "2026-04-18",
 	"compatibility_flags": [
@@ -35,7 +36,7 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -47,6 +48,20 @@
 	 * databases, object storage, AI inference, real-time communication and more.
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "bakerysense",
+			"database_id": "0f9b74b1-fa75-4ff1-bbfb-87bd0e377890",
+			"migrations_dir": "drizzle"
+		}
+	],
+	"kv_namespaces": [
+		{ "binding": "KV", "id": "f07f4dea79ce40309aad6e595d0cb214" }
+	],
+	"triggers": {
+		"crons": ["0 3 * * *"]
+	},
 	/**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
