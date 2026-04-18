@@ -35,4 +35,35 @@ describe("auth flow", () => {
 		});
 		expect(res2.status).toBe(409);
 	});
+
+	it("full signup → signin → me → signout flow", async () => {
+		await SELF.fetch("https://x.test/api/auth/signup", {
+			method: "POST", headers: { "content-type": "application/json" },
+			body: JSON.stringify({ email:"full@b.co", password:"FullFlow2026FullFlow", tenantName:"F", tenantSlug:"f", vertical:"bakery" }),
+		});
+
+		const cookieHome = (r: Response) => r.headers.get("set-cookie") ?? "";
+		let res: Response;
+
+		res = await SELF.fetch("https://x.test/api/auth/signin", {
+			method: "POST", headers: { "content-type": "application/json" },
+			body: JSON.stringify({ email:"full@b.co", password:"FullFlow2026FullFlow", tenantSlug:"f" }),
+		});
+		expect(res.status).toBe(200);
+		const cookies = cookieHome(res);
+		expect(cookies).toMatch(/bs_at=/);
+
+		res = await SELF.fetch("https://x.test/api/auth/me", {
+			headers: { cookie: cookies.split(",").map((s) => s.split(";")[0]).join("; ") },
+		});
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.claims.role).toBe("tenant_admin");
+
+		res = await SELF.fetch("https://x.test/api/auth/signout", {
+			method: "POST",
+			headers: { cookie: cookies.split(",").map((s) => s.split(";")[0]).join("; ") },
+		});
+		expect(res.status).toBe(200);
+	});
 });
