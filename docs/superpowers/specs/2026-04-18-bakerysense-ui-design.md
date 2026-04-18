@@ -24,7 +24,8 @@ The UI must:
 - Run on the Cloudflare suite as the primary deployment target, with browser
   WASM / WebGPU and Python containers as escape hatches
 - Treat Gemma 4 as the only required external LLM dependency, routed through
-  OpenRouter with BYOK support
+  a preset registry of OpenAI-compatible endpoints (OpenRouter, Groq,
+  Together, Cloudflare Workers AI, etc.) with BYOK + OAuth support
 
 Hackathon narrative frame: **multi-tenant retail forecasting platform,
 bakery as first wedge, real chain as design partner.** The on-device /
@@ -66,14 +67,15 @@ only if a TS foundation-model sidecar is activated post-MVP.
   tokens, JWKS keys, chat sessions, rate limits, caches)
 - **Cloudflare R2** for photo blobs (opt-in persistence) and serialized
   LightGBM tree JSON
-- **OpenRouter** (external) as the Gemma 4 endpoint; BYOK supported
+- **Provider connectors** via a generic `LLMClient` speaking OpenAI-compatible
+  chat completions; OpenRouter is the default preset for Gemma 4
 - **Drizzle ORM** for D1 schema + migrations
 
 ### 3.2. Compute placement
 
 | Work | Where | Notes |
 |---|---|---|
-| LLM inference (chat, vision) | Worker → OpenRouter | OpenRouter API key server-side; `X-BYO-Key` header overrides |
+| LLM inference (chat, vision) | Worker → active connector upstream | Tenant's encrypted connector credential unwrapped per-request; `X-BYO-Key` + `X-BYO-BaseURL` header triple overrides for dev / anonymous |
 | Tool-calling loop | Queue-consumer Worker | Runs the full Gemma↔tool dance without client round-trips |
 | `forecast`, `explain_drivers`, `waste_risk`, `suggest_markdowns`, `list_skus` | Worker (pure-JS LightGBM walker) | ~200 LOC tree walker; serialized trees fetched from R2 and cached in-memory per instance |
 | Session state, turn state, keys | KV (with TTL) | No joins, blob-shaped |
@@ -159,12 +161,23 @@ jwks:<kid>                      → { alg:'ES256', publicJwk,
                                     retiredAt }
 jwks:active                     → <kid>
 
+connector:tenant:<tid>:<cid>    → { id, label, preset, baseUrl, model,
+                                    authMethod, encCredential, createdAt,
+                                    lastUsedAt }                   no ttl
+connector:tenant:<tid>:index    → { connectorIds: [...], defaultId }
+oauth:state:<state>             → { tenantId, connectorId, verifier,
+                                    initiatedByUserId, createdAt } ttl=10m
+
 chat:session:<sid>              → full blob (messages, userId, tenantId,
-                                  branchId, createdAt, updatedAt) ttl=7d
+                                  branchId, connectorId,
+                                  stateSummary?,                   // from
+                                  createdAt, updatedAt)             // context
+                                                                   // compaction
+                                                                   ttl=7d
 chat:user:<uid>:<sid>           → { createdAt }                   ttl=7d
 chat:tenant:<tid>:<sid>         → { createdAt }                   ttl=7d
 chat:turn:<sid>:<turnId>        → { status, partialEvents[],
-                                    finalAnswer }                  ttl=1h
+                                    finalAnswer, toolRoundsUsed }  ttl=1h
 
 rate:<type>:<key>               → <counter>                        ttl=window
 byok:valid:<keyHash>            → { ok:true, label }               ttl=5m
@@ -281,21 +294,135 @@ tenants.
 Email verification and password reset are stubbed for MVP (tenant_admin
 must DM new members with temporary passwords).
 
-### 5.7. BYOK
+### 5.7. LLM connectors and BYOK
 
-OpenRouter key stored in browser `localStorage` under
-`bakerysense.openrouter.key`. Transport via `X-BYO-Key` header on every
-LLM-routed request. Worker key selection:
+BakerySense speaks to any **OpenAI-compatible chat completions endpoint**
+via a uniform `LLMClient` abstraction. Configuration is per-tenant — the
+tenant pays for the platform and owns the provider keys; staff members
+within the tenant consume whichever connector the tenant admin has set as
+default. This matches the "who pays for inference" principle and keeps
+billing surface coherent.
+
+**Connector record (shape):**
 
 ```ts
-const key = request.headers.get('X-BYO-Key') ?? env.OPENROUTER_API_KEY
-if (!key) return new Response('no key available', { status: 402 })
+{
+  id: "conn-abc",
+  label: "Primary OpenRouter",
+  preset: "openrouter" | "groq" | "together" | "cloudflare-ai"
+        | "openai" | "anthropic-via-oai" | "ollama-tunnel" | "custom",
+  baseUrl: "https://openrouter.ai/api/v1",
+  model: "google/gemma-4-e4b-it",
+  authMethod: "api_key" | "oauth" | "none",
+  encryptedCredential: "...",                // absent when authMethod=="none"
+  createdAt, lastUsedAt
+}
 ```
 
-Validation endpoint `/api/key/validate` makes a cheap `/v1/models` probe.
-UI shows key source in the status badge ("Key: yours" / "Key: shared").
+**Preset registry (hard-coded, extensible):**
+
+| Preset | `baseUrl` | Gemma 4? | Auth | Reachable from Worker? |
+|---|---|---|---|---|
+| `openrouter` | `https://openrouter.ai/api/v1` | Yes (routed to Google) | API key **or** OAuth/PKCE | Yes |
+| `groq` | `https://api.groq.com/openai/v1` | If listed | API key | Yes |
+| `together` | `https://api.together.xyz/v1` | Usually | API key | Yes |
+| `cloudflare-ai` | Workers AI binding | If `@cf/google/gemma-4-*` ships | Cloudflare-native | Yes |
+| `openai` | `https://api.openai.com/v1` | No Gemma on OAI | API key | Yes |
+| `ollama-tunnel` | user-supplied cloudflared URL | Yes if pulled | API key or none | Yes |
+| `custom` | user-supplied | user-supplied | user choice | user-supplied |
+
+**Three-tier selection on each LLM request:**
+
+1. **Ephemeral override** — `X-BYO-Key` + `X-BYO-BaseURL` + `X-BYO-Model`
+   headers. For developer testing and anonymous visitors only.
+2. **Tenant's default connector** — authenticated users in a tenant use the
+   tenant's `defaultId` connector; its encrypted credential is unwrapped by
+   the Worker per request and passed to the upstream endpoint.
+3. **Shared anonymous fallback** — Worker's `OPENROUTER_API_KEY` secret,
+   available only to unauthenticated visitors, rate-limited to 5 turns per
+   IP per hour via a KV counter.
+
+**OAuth quick-connect (OpenRouter):** clicking "Connect via OAuth" on the
+OpenRouter preset starts a PKCE flow (`/auth?response_type=code&...`). The
+exchange response (a scoped token) becomes the connector's
+`encryptedCredential`. The master API key never touches our storage.
+Verification note — see §16 — confirm exact scopes/lifetime of the
+OpenRouter OAuth response on day 1.
+
+**Encryption at rest:** every connector blob's `encryptedCredential` is
+AES-256-GCM with a random IV using a Worker secret `CONNECTOR_MEK`. Ciphertext
+is versioned (`v1:<base64>`) so MEK rotation re-encrypts lazily on next read
+without downtime. We never log plaintext credentials, never include them in
+analytics, never ship them to the browser, never write them to D1/R2 — only
+the encrypted blob lives in KV.
+
+**UI:**
+
+- `/t/[slug]/admin/connectors` (tenant_admin only) — list, add, edit, delete,
+  set default
+- `<ConnectorForm>` with preset picker; OpenRouter preset shows "Connect via
+  OAuth" alongside "Paste API key"
+- `<ConnectorTest>` validates by calling the preset's `/models` endpoint
+  before save
+- Status badge in the app header shows the active connector label + preset
+
+**Why this replaces single-vendor BYOK:**
+
+Research on production LLM apps (LibreChat, LobeChat, Cursor) converges on
+a generic OpenAI-compatible connector abstraction with preset presets. Locking
+the platform to OpenRouter alone would force a painful migration later. The
+`LLMClient` abstraction isolates provider-specific concerns from the agent
+loop, so Gemma 4 rules (stop sequences, thought stripping, context compaction)
+all live in the agent loop, not in any preset.
 
 ## 6. Agent loop and tool calling
+
+### 6.0. Gemma 4 design rules (bake into the queue consumer)
+
+These are non-negotiable, derived from Google's Gemma 4 model card + prompt
+formatting docs + HuggingFace Gemma 4 blog + Unsloth Gemma 4 guide. The
+`LLMClient` abstraction is provider-agnostic; **these rules live in the queue
+consumer**, which applies them before/after every upstream call regardless of
+which connector is active.
+
+1. **Native `tools=[...]` JSON Schema, not ReAct.** Gemma 4's tool-calling
+   accuracy is 86.4 % (vs 6.6 % on Gemma 3); explicit ReAct scaffolding costs
+   2–4× the tokens for marginal gain at our scale (5 tools, 1–3 call depth).
+   Only introduce ReAct if offline eval shows tool-selection errors.
+
+2. **System prompt structure:** `<|think|>You are …` with thinking mode
+   enabled for planning-heavy turns; drop the `<|think|>` marker for simple
+   dispatch turns to save latency. Keep system prompt body ≤ ~2 000 tokens
+   to stay inside Gemma 4 E4B's always-global attention layers (the model
+   uses 512-token sliding-window attention interleaved with global layers).
+
+3. **Explicit stop sequences** on every upstream call:
+   `stop: ["<turn|>", "<tool_response>"]`. Defends against the documented
+   Gemma runaway-generation failure mode.
+
+4. **Strip prior thought blocks between turns.** Non-negotiable per the
+   Gemma 4 docs: "historical model output should only include the final
+   response." Our session blob in KV stores only cleaned assistant messages;
+   within a single tool-calling turn, thoughts survive between rounds.
+
+5. **Flat tool schemas.** E4B struggles with nested objects. All our tools
+   use top-level scalar fields — `sku: string`, `branch_id: string`,
+   `on_date: string` — never `filter: { sku, branch }`.
+
+6. **Validate tool-call args with Zod at the queue-consumer boundary.** On
+   validation failure, return an error tool_response (`{ error:
+   "invalid_args: …" }`) rather than executing — this lets Gemma self-correct
+   within the bounded loop.
+
+7. **Handle parallel tool calls AND sequential.** E4B inconsistently emits
+   multiple calls per turn; the loop dispatches all calls in a turn,
+   collects results, then returns them together on the next round.
+
+8. **Tool results are untrusted data.** The 2026 dominant prompt-injection
+   vector is tool output instructing the next tool call. Sanitize result
+   strings (escape Gemma's special tokens: `<turn|>`, `<tool_response>`,
+   `<|think|>`) before feeding back; never let a tool's output pattern
+   itself instruct another tool call.
 
 ### 6.1. Sequence (one chat turn)
 
@@ -313,7 +440,9 @@ browser ─ GET /api/chat/stream/:turnId (SSE) ─► Worker
 chat-queue ─► queue-consumer
                  loop:
                    1. load session from chat:session:<sid>
-                   2. call OpenRouter with messages + TOOL_SCHEMAS
+                   2. resolve active connector for this session; instantiate
+                      LLMClient; call upstream with messages + TOOL_SCHEMAS
+                      + stop=["<turn|>","<tool_response>"]
                    3. if tool_call: execute in-Worker, append tool result,
                       write partial event to chat:turn, goto 2
                    4. final answer: append assistant message, write final
@@ -341,8 +470,51 @@ fixtures in tests.
 
 ### 6.3. Bounded loop
 
-`max_tool_rounds = 4`. On exceeding: emit `{ event: "error", reason:
-"max_rounds" }` and persist a helpful fallback answer.
+- `max_tool_rounds_per_turn = 4` — cap for one user question
+- `max_tool_rounds_per_session = 15` — cumulative cap across a chat session
+  (prevents runaway loops from eating Worker CPU budget)
+- Early termination if: (a) same tool called twice with identical args
+  within a turn, (b) assistant emits text content without a `tool_calls`
+  array (that is the final answer), (c) per-turn or session cap reached.
+- On cap breach: emit SSE `{ event: "error", reason: "max_rounds" }` and
+  persist a polite fallback answer to KV.
+
+### 6.4. Context compaction
+
+Gemma 4 E4B's context window is 128 K tokens, but quality softens noticeably
+around 50–60 % fill because of the sliding-window attention design. E4B's
+128K MRCR-v2 score is meaningfully below 26B (44 %) and 31B (66 %). We
+compact at **~60 K tokens** for E4B-backed connectors and at **~150 K** for
+26B / 31B.
+
+**Token counting.** Use Gemma's SentencePiece tokenizer (262 K vocab) via
+`@huggingface/transformers` loaded in a helper Worker. For hot-path budgeting
+we approximate with `chars / 3.5`; the exact count runs asynchronously and
+triggers compaction when it crosses the threshold.
+
+**Strategy** (hybrid structured-state + summarization):
+
+1. **Always keep verbatim:** system prompt, the most recent 3 user/assistant
+   message pairs, the current turn's in-flight messages.
+2. **Compact older turns:** replace each older assistant message with a
+   1-sentence summary ("user asked for baguette forecast → bake 135, drivers
+   were lag_7, rolling_7"). Drop old `tool_response` JSON bodies entirely;
+   keep only a one-line summary of the tool name + key outputs.
+3. **Maintain a `session_state` JSON** rebuilt by an `update_state` tool
+   that Gemma calls at the end of each substantive turn. The state object
+   holds current SKUs discussed, branches in scope, decisions made. Injected
+   into the system prompt for every turn — so Gemma has stable context even
+   as older prose is summarized away.
+4. **LLM-driven summarization** happens in a side channel: when the token
+   budget crosses the threshold, a background Worker invocation summarizes
+   the drop-eligible turns using a small-model call (or the same Gemma 4
+   with a tightly scoped prompt) and writes the compacted session blob back
+   to KV.
+
+The `session_state` approach is template-driven, not prose-driven, because
+E4B's summarization quality is mediocre. Rebuilding a small JSON object via
+a dedicated tool call is more reliable than asking Gemma to summarize itself
+in natural language.
 
 ## 7. Pages and user journey
 
@@ -360,8 +532,9 @@ fixtures in tests.
 | `/t/[slug]/display-case` | authed | Upload photo → counts → markdown list |
 | `/t/[slug]/admin/users` | tenant_admin | Member table, invite/remove, role edit |
 | `/t/[slug]/admin/branches` | tenant_admin | Branch CRUD |
+| `/t/[slug]/admin/connectors` | tenant_admin | LLM connector management (add / edit / default / delete, OAuth flow) |
 | `/t/[slug]/admin/audit` | tenant_admin | Audit log table |
-| `/account/settings` | authed | Password change, BYOK dialog, active sessions |
+| `/account/settings` | authed | Password change, active sessions, personal dev overrides |
 
 ### 7.2. End-to-end demo journey (maps to Playwright scenarios)
 
@@ -399,7 +572,9 @@ chain naturally for the demo video as one continuous story.
 - `<Nav>` — top bar with tenant header, branch selector, user menu, settings gear
 - `<BranchSelector>` — dropdown; persists to KV session; rewrites system prompt on change
 - `<UserMenu>` — account settings, sign out
-- `<ApiKeyDialog>` — BYOK input + validate button
+- `<DevOverridesPanel>` — `/account/settings` only; lets developers set
+  `X-BYO-Key` / `X-BYO-BaseURL` / `X-BYO-Model` overrides for the current
+  browser session (stored in `localStorage`, scoped to dev/testing)
 - `<StatusBadge>` — model label, data freshness, key source, branch
 - `<ErrorBoundary>` — route-level fallback
 - `<TenantHeader>` — tenant name, vertical tag
@@ -430,13 +605,19 @@ chain naturally for the demo video as one continuous story.
 ### 8.5. Admin
 
 - `<MemberTable>`, `<InviteDialog>`, `<BranchTable>`, `<BranchEditor>`, `<AuditLogTable>`
+- `<ConnectorList>`, `<ConnectorForm>` (preset picker + OAuth or API-key flow), `<ConnectorTest>` (validates against preset's `/models`)
 
 ### 8.6. Server-side modules (Worker code, no UI)
 
 - `src/lib/auth/` — JWT sign/verify, JWKS cache, Argon2id, middleware
 - `src/lib/rbac.ts` — `requireRole`, branch-scope checks
 - `src/lib/tenant.ts` — slug resolution, tenant-locked query helpers
-- `src/lib/openrouter.ts` — typed chat completion wrapper
+- `src/lib/llm/client.ts` — provider-agnostic `LLMClient` (chat, stop, tools)
+- `src/lib/llm/presets.ts` — preset registry + per-preset request shaping
+- `src/lib/llm/oauth/openrouter.ts` — OpenRouter PKCE flow
+- `src/lib/llm/tokens.ts` — SentencePiece tokenizer helper + budget approximation
+- `src/lib/connector.ts` — tenant connector CRUD (KV) + AES-GCM encryption
+- `src/lib/compactor.ts` — context-compaction policy + state-extraction prompt
 - `src/lib/gbm-walker.ts` — pure-JS LightGBM inferencer + SHAP
 - `src/lib/features.ts` — feature-store loader from R2
 - `src/lib/newsvendor.ts` — order-quantity math, byte-for-byte parity with Python
@@ -487,8 +668,12 @@ Density is generous (16 px base, 1.5 line-height).
 |---|---|
 | Forecaster miss (unknown SKU for this tenant's feature store) | Tool returns `{ error: "Unknown SKU for branch <id>" }`; Gemma retries or reports |
 | Branch specified in tool call that user cannot access | Tool returns `{ error: "Branch not found" }` (404-equivalent, no enumeration); audit_log `branch.access.denied` |
-| OpenRouter 5xx | Consumer catches, marks turn `failed`, SSE `error` event, browser toast + retry |
-| OpenRouter 429 | Exponential backoff up to 3 tries inside consumer; Queues retry further |
+| Malformed tool-call args from Gemma | Zod validation fails → return `tool_response: { error: "invalid_args: <field> expected <type>" }` so Gemma self-corrects within the bounded loop |
+| Tool-output prompt injection attempt | Result strings sanitized before feed-back (Gemma special tokens escaped); agent loop never lets a tool's output directly instruct another tool call |
+| Connector misconfigured (wrong baseUrl, expired OAuth token) | Upstream returns 401/404; queue consumer catches, marks turn `failed` with `reason: "connector_auth"`, audit_log `connector.auth_failed`, prompts tenant_admin to re-validate in the connector admin page |
+| Connector unreachable (network / CF egress block) | Upstream ECONNREFUSED / timeout; same failure flow as above with `reason: "connector_unreachable"` |
+| Upstream provider 5xx | Consumer catches, marks turn `failed`, SSE `error` event, browser toast + retry |
+| Upstream provider 429 | Exponential backoff up to 3 tries inside consumer; Queues retry further |
 | Photo too large / unsupported | Worker 400 at `/api/photo`; no queue message enqueued |
 | Gemma returns malformed tool args | Tool dispatch returns error; Gemma sees + retries; bounded at 4 rounds |
 | KV eventual-consistency read miss | Retry once after 250 ms; then assume fresh session |
@@ -512,7 +697,7 @@ Density is generous (16 px base, 1.5 line-height).
 | Dashboard Worker → all-branches batch forecast | 50–150 ms |
 | Chat `POST /api/chat` → 202 | 30–80 ms |
 | Queue dispatch delay | 200–800 ms |
-| Gemma round (OpenRouter) | 2000–8000 ms |
+| Gemma round (active connector upstream) | 2000–8000 ms |
 | Tool execution (in-Worker) | 5–20 ms |
 | SSE chunk delivery | < 100 ms |
 | **End-to-end chat turn (2 Gemma rounds, 1 tool call)** | **5–15 s typical** |
@@ -524,14 +709,17 @@ Density is generous (16 px base, 1.5 line-height).
 - `gbm-walker.ts` — parity with Python booster on 100 random feature vectors (abs error < 1e-4)
 - `newsvendor.ts` — exact match with Python reference on a table of (cu, co, quantiles) cases
 - `features.ts` — round-trip load + lookup
-- `openrouter.ts` — mocked fetch, tool-call response shape
-- `tools/*.ts` — happy path + error shapes per tool, mocked feature store
+- `llm/client.ts` — mocked fetch against each preset's request shape (OpenAI-compatible + preset-specific quirks)
+- `llm/tokens.ts` — SentencePiece token count vs Gemma's reference for 50 sample strings
+- `compactor.ts` — context-compaction determinism: same session blob + threshold → same compacted output
+- `connector.ts` — AES-GCM encrypt/decrypt round-trip, version-migration on MEK rotation
+- `tools/*.ts` — happy path + error shapes per tool, Zod validation on malformed Gemma args, mocked feature store
 - `auth/*` — JWT ES256 sign+verify round-trip, Argon2id timing guard, JWKS rotation (old kid still verifies while retired)
 
 ### 11.2. Integration (Vitest + Miniflare, CI)
 
 - Signup → signin → refresh → signout against Miniflare D1 + KV
-- `/api/chat` → queue → consumer → KV final state (mocked OpenRouter fixtures)
+- `/api/chat` → queue → consumer → KV final state (mocked connector upstream fixtures, one per preset)
 - Branch switch resets chat
 - RBAC matrix: generated from `src/lib/rbac/permissions.ts` — every (role × route × scope) × {allow, deny} assertion
 - Multi-tenant isolation: user in tenant A attempts every tenant-B resource, expects 404 on all
@@ -540,7 +728,7 @@ Density is generous (16 px base, 1.5 line-height).
 
 - 7 scenarios from Section 7.2
 - Data-testid selectors everywhere; no static sleeps
-- Runs against `npm run dev` + `wrangler dev` + OpenRouter-replay fixtures
+- Runs against `npm run dev` + `wrangler dev` + connector-replay fixtures (default preset = OpenRouter with recorded responses)
 - Produces the demo video + user manual as a byproduct of the test run
 
 ### 11.4. Python side
@@ -550,14 +738,20 @@ The existing 39 pytest tests continue to guard the training pipeline
 
 ## 12. Security
 
-- **Worker's default OpenRouter API key**: stored as `OPENROUTER_API_KEY`
-  Worker secret; never in the browser bundle; used when the request carries
-  no `X-BYO-Key` header
-- **Visitor's BYOK OpenRouter key**: lives only in the visitor's browser
-  `localStorage` (`bakerysense.openrouter.key`); transmitted per-request as
-  the `X-BYO-Key` header over TLS; never persisted server-side; never logged.
-  The Worker does not write this value to KV, D1, R2, Analytics Engine, or
-  any log stream
+- **Worker's default (shared anonymous) OpenRouter API key**: stored as
+  `OPENROUTER_API_KEY` Worker secret; used only for unauthenticated visitors,
+  rate-limited 5 turns / IP / hour
+- **Tenant connector credentials**: stored as `encryptedCredential` in KV,
+  AES-256-GCM with a Worker-secret `CONNECTOR_MEK`; versioned ciphertext
+  for lazy re-encryption on MEK rotation; never logged, never in analytics,
+  never shipped to the browser after save, never written to D1/R2
+- **OpenRouter OAuth path**: the scoped token returned by OpenRouter's PKCE
+  flow becomes the connector's `encryptedCredential`; the user's master
+  OpenRouter API key never touches our infrastructure
+- **Ephemeral `X-BYO-Key` header path**: useful for developer testing and
+  anonymous visitors; key is in memory during the handler scope only; never
+  persisted; `authMethod` variants accept `X-BYO-BaseURL` and `X-BYO-Model`
+  to fully override the connector per-request
 - Session cookies: `HttpOnly`, `Secure`, `SameSite=Strict`, signed with HMAC key from Worker secret
 - CSRF protection: double-submit cookie pattern on all mutating requests
 - Photo upload: 5 MB limit, MIME-validated, EXIF stripped before R2 write
@@ -633,15 +827,38 @@ per hackathon Rules §2.5.
 | In-browser training UI | Training stays Python CLI | Never in this project |
 | Unsloth fine-tune integration | Stretch post-video | After demo is shot |
 | TS foundation model sidecar (TimesFM / Timer-XL / Sundial) | Stretch post-MVP | After cold-start SKUs appear |
+| Per-user personal connectors | Connectors are per-tenant in MVP | Post-hackathon when staff want personal quotas |
+| Tenant-level cost dashboard / billing page | Analytics Engine exposes raw metrics; no UI | Commercial tier |
+| Envelope encryption with password-derived DEK | Research shows rare outside password managers; blocks recovery on password reset | Enterprise tier if required |
+| Local Ollama / LM Studio first-class connector (browser → localhost bypass of Worker) | Doubles code paths | Post-MVP; `ollama-tunnel` preset with cloudflared is the MVP workaround |
 
 ## 16. Open verification items (to confirm on day 1 of implementation)
 
-1. **OpenRouter lists Gemma 4 today.** If not, temporary fallback to Gemma 3 with a TODO to swap. Verified by one curl on `/api/v1/models`.
-2. **Tool calling works via OpenRouter with Gemma 4.** One-shot curl test on `/v1/chat/completions` with a dummy tool schema.
-3. **Cloudflare Queues requires Workers Paid ($5/mo).** Accepted cost.
-4. **Pure-JS LightGBM walker numeric parity with Python booster.** Proven by unit test before any UI work proceeds.
-5. **Argon2id via `@noble/hashes` runs within Workers CPU budget.** Benchmark: one signup should take ~400 ms (intentional cost).
-6. **SSE survives Cloudflare Workers `waitUntil` budget.** Confirmed by timing a 30-second stream.
+1. **OpenRouter lists Gemma 4 today** under a stable model id (e.g.,
+   `google/gemma-4-e4b-it`). If not, temporary fallback preset with a TODO
+   to swap. Verified by one curl on `/api/v1/models`.
+2. **Tool calling works via OpenRouter with Gemma 4.** One-shot curl on
+   `/v1/chat/completions` with a dummy tool schema. Specifically confirm
+   (a) `tools` parameter is respected, (b) stop sequences `<turn|>` and
+   `<tool_response>` are recognized, (c) multiple tool calls per turn are
+   emitted correctly when prompted.
+3. **OpenRouter OAuth/PKCE flow** — confirm exact scopes, token lifetime,
+   refresh support. If the flow is instant-one-shot (no refresh), document
+   as such; still preferable to the user pasting their master API key.
+4. **Cloudflare Queues requires Workers Paid ($5/mo).** Accepted cost.
+5. **Pure-JS LightGBM walker numeric parity with Python booster.** Proven
+   by unit test before any UI work proceeds (< 1e-4 abs error on 100 random
+   feature vectors).
+6. **Argon2id via `@noble/hashes` runs within Workers CPU budget.**
+   Benchmark: one signup should take ~400 ms (intentional cost).
+7. **SSE survives Cloudflare Workers `waitUntil` budget.** Confirmed by
+   timing a 30-second stream.
+8. **Gemma SentencePiece tokenizer loads in a Worker.** Benchmark: single
+   token count on a 60 K-character session blob completes in < 500 ms.
+9. **Context compaction round-trips preserve forecast accuracy.** A chat
+   that reaches 60 K tokens, compacts, and then asks a new forecast
+   question produces the same numeric output it would have without
+   compaction (tool results are deterministic).
 
 ## 17. Success criteria
 
@@ -668,6 +885,15 @@ Anything less and the submission is weaker than the plan.
 ## 18. Change log
 
 - **2026-04-18** — initial design, approved in brainstorming session
+- **2026-04-18** — revision: generalized from single-vendor BYOK to
+  OpenAI-compatible `LLMClient` + per-tenant connector model with preset
+  registry (OpenRouter, Groq, Together, Cloudflare Workers AI, OpenAI,
+  Ollama tunnel, custom); added OpenRouter OAuth/PKCE as preferred auth
+  method on the OpenRouter preset
+- **2026-04-18** — revision: added Section 6.0 (Gemma 4 design rules) with
+  8 non-negotiable implementation guardrails derived from Gemma 4 docs +
+  HF blog + Unsloth guide; added Section 6.4 (context compaction) with a
+  hybrid structured-state + summarization strategy
 
 ## 19. References
 
