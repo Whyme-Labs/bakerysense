@@ -24,7 +24,7 @@ describe("JWKS", () => {
 		expect(retiredKid).toBe(a.kid);
 
 		// both must still be fetchable as public keys
-		const aPub = await getPublicJwkByKid(env, retiredKid);
+		const aPub = await getPublicJwkByKid(env, retiredKid!);
 		const bPub = await getPublicJwkByKid(env, newKid);
 		expect(aPub).toBeTruthy();
 		expect(bPub).toBeTruthy();

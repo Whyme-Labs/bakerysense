@@ -5,9 +5,11 @@ import { hashPassword } from "@/lib/auth/argon2";
 import { signAccessToken } from "@/lib/auth/jwt";
 import { getActivePrivateJwk } from "@/lib/auth/jwks";
 import { issueRefresh } from "@/lib/auth/refresh";
-import { setAuthCookie } from "@/lib/auth/cookies";
+import { setAuthCookie, setReadableCookie } from "@/lib/auth/cookies";
+import { issueCsrf } from "@/lib/auth/csrf";
 import { BadRequest, Conflict, TooMany, errorResponse } from "@/lib/errors";
 import { rateLimit } from "@/lib/ratelimit";
+import { writeAudit } from "@/lib/audit";
 import { eq } from "drizzle-orm";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
@@ -61,11 +63,22 @@ export async function POST(req: Request): Promise<Response> {
 			{ sub: userId, tid: tenantId, role: "tenant_admin", branches: null, kid },
 			{ privateJwk: jwk, kid, ttlSeconds: 60 * 15 },
 		);
-		const rt = await issueRefresh(env, { userId, tenantId });
+		const rt = await issueRefresh(env, {
+			userId,
+			tenantId,
+			ip: req.headers.get("cf-connecting-ip") ?? undefined,
+			ua: req.headers.get("user-agent") ?? undefined,
+		});
 
 		const headers = new Headers({ "content-type": "application/json" });
 		await setAuthCookie(env, headers, "bs_at", at, { maxAgeSeconds: 60 * 15 });
 		await setAuthCookie(env, headers, "bs_rt", rt.token, { maxAgeSeconds: 60 * 60 * 24 * 30 });
+		const csrf = await issueCsrf(env, userId);
+		setReadableCookie(headers, "bs_csrf", csrf, 60 * 60);
+
+		await writeAudit(env, { tenantId, actorUserId: userId, action: "tenant.created" });
+		await writeAudit(env, { tenantId, actorUserId: userId, action: "user.signed_up" });
+
 		return new Response(JSON.stringify({ tenantSlug, userId, tenantId }), { status: 201, headers });
 	} catch (e) {
 		return errorResponse(e);

@@ -59,8 +59,10 @@
 	"kv_namespaces": [
 		{ "binding": "KV", "id": "f07f4dea79ce40309aad6e595d0cb214" }
 	],
+	// JWKS cron disabled until we wire a separate Worker script for scheduled handlers;
+	// use POST /api/internal/rotate-jwks for manual rotation in the meantime.
 	"triggers": {
-		"crons": ["0 3 * * *"]
+		"crons": []
 	},
 	/**
 	 * Environment Variables

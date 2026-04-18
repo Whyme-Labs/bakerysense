@@ -51,3 +51,7 @@ export async function readAuthCookie(
 export function clearAuthCookie(headers: Headers, name: string, path = "/"): void {
 	headers.append("set-cookie", `${name}=; Path=${path}; Max-Age=0; HttpOnly; Secure; SameSite=Strict`);
 }
+
+export function setReadableCookie(headers: Headers, name: string, value: string, maxAgeSeconds = 60 * 60): void {
+	headers.append("set-cookie", `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSeconds}; Secure; SameSite=Strict`);
+}

@@ -4,6 +4,7 @@ import { base64url } from "@scure/base";
 import { resolveSession } from "@/lib/auth/session";
 import { requireRole } from "@/lib/rbac";
 import { Unauthorized, errorResponse } from "@/lib/errors";
+import { writeAudit } from "@/lib/audit";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const runtime = "nodejs";
@@ -33,6 +34,7 @@ export async function GET(req: Request): Promise<Response> {
 		url.searchParams.set("code_challenge", challenge);
 		url.searchParams.set("code_challenge_method", "S256");
 		url.searchParams.set("state", state);
+		await writeAudit(env, { tenantId: session.claims.tid, actorUserId: session.claims.sub, action: "oauth.initiated" });
 		return Response.redirect(url.toString(), 302);
 	} catch (e) { return errorResponse(e); }
 }

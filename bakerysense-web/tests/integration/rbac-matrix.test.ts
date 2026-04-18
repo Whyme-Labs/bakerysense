@@ -2,7 +2,21 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { env, applyD1Migrations, SELF } from "cloudflare:test";
 import { CAPABILITIES } from "@/lib/rbac/permissions";
 
-async function signupAdmin(slug: string): Promise<string> {
+interface AuthResult {
+	cookie: string;
+	csrf: string;
+}
+
+function extractCookiesAndCsrf(res: Response): AuthResult {
+	const setCookie = res.headers.get("set-cookie") ?? "";
+	const parts = setCookie.split(",").map((s) => s.trim());
+	const cookie = parts.map((s) => s.split(";")[0]).join("; ");
+	const csrfPart = parts.find((s) => s.startsWith("bs_csrf="));
+	const csrf = csrfPart ? decodeURIComponent(csrfPart.split(";")[0].replace("bs_csrf=", "")) : "";
+	return { cookie, csrf };
+}
+
+async function signupAdmin(slug: string): Promise<AuthResult> {
 	const res = await SELF.fetch("https://x.test/api/auth/signup", {
 		method: "POST", headers: { "content-type": "application/json" },
 		body: JSON.stringify({ email:`${slug}@x.co`, password:"Matrix2026Matrix!", tenantName:slug, tenantSlug:slug, vertical:"bakery" }),
@@ -14,7 +28,7 @@ async function signupAdmin(slug: string): Promise<string> {
 	if (!setCookie) {
 		throw new Error("No set-cookie header in signup response");
 	}
-	return setCookie.split(",").map((s) => s.split(";")[0]).join("; ");
+	return extractCookiesAndCsrf(res);
 }
 
 describe("RBAC matrix (tenant_admin baseline)", () => {
@@ -33,10 +47,10 @@ describe("RBAC matrix (tenant_admin baseline)", () => {
 			const methodPart = cap.method.toLowerCase().slice(0, 2);
 			const randomPart = Math.random().toString(36).slice(2, 6);
 			const slug = pathPart + methodPart + randomPart;
-			const cookie = await signupAdmin(slug);
+			const { cookie, csrf } = await signupAdmin(slug);
 			const opts: { method: string; headers: Record<string, string>; body?: string } = {
 				method: cap.method,
-				headers: { cookie },
+				headers: { cookie, "x-csrf-token": csrf },
 			};
 			// Add minimal body for POST requests that require content
 			if (cap.method === "POST") {

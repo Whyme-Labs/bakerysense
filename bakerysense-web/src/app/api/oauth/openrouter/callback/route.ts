@@ -1,5 +1,6 @@
 import { createConnector } from "@/lib/connector";
 import { BadRequest, errorResponse } from "@/lib/errors";
+import { writeAudit } from "@/lib/audit";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const runtime = "nodejs";
@@ -40,6 +41,7 @@ export async function GET(req: Request): Promise<Response> {
 			authMethod: "oauth",
 			credential: body.access_token,
 		});
+		await writeAudit(env, { tenantId: st.tenantId, actorUserId: st.initiatedByUserId, action: "oauth.completed" });
 
 		return Response.redirect(new URL("/account/settings?oauth=ok", req.url).toString(), 302);
 	} catch (e) { return errorResponse(e); }

@@ -60,7 +60,7 @@ describe("auth flow", () => {
 			headers: { cookie: cookies.split(",").map((s) => s.split(";")[0]).join("; ") },
 		});
 		expect(res.status).toBe(200);
-		const body = await res.json();
+		const body = await res.json() as { claims: { role: string } };
 		expect(body.claims.role).toBe("tenant_admin");
 
 		res = await SELF.fetch("https://x.test/api/auth/signout", {

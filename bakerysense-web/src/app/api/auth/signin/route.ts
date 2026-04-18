@@ -6,9 +6,11 @@ import { verifyPassword } from "@/lib/auth/argon2";
 import { signAccessToken } from "@/lib/auth/jwt";
 import { getActivePrivateJwk } from "@/lib/auth/jwks";
 import { issueRefresh } from "@/lib/auth/refresh";
-import { setAuthCookie } from "@/lib/auth/cookies";
+import { setAuthCookie, setReadableCookie } from "@/lib/auth/cookies";
+import { issueCsrf } from "@/lib/auth/csrf";
 import { BadRequest, Unauthorized, TooMany, errorResponse } from "@/lib/errors";
 import { rateLimit } from "@/lib/ratelimit";
+import { writeAudit } from "@/lib/audit";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const runtime = "nodejs";
@@ -46,16 +48,26 @@ export async function POST(req: Request): Promise<Response> {
 		const permittedBranches = ba.length === 0 ? null : ba.map((r) => r.branchId);
 
 		await db.update(users).set({ lastLoginAt: Date.now() }).where(eq(users.id, user.id));
+		await writeAudit(env, { tenantId: tenant.id, actorUserId: user.id, action: "user.signed_in" });
+
 		const { kid, jwk } = await getActivePrivateJwk(env);
 		const at = await signAccessToken(
 			{ sub: user.id, tid: tenant.id, role: m.role, branches: permittedBranches, kid },
 			{ privateJwk: jwk, kid, ttlSeconds: 60 * 15 },
 		);
-		const rt = await issueRefresh(env, { userId: user.id, tenantId: tenant.id });
+		const rt = await issueRefresh(env, {
+			userId: user.id,
+			tenantId: tenant.id,
+			ip: req.headers.get("cf-connecting-ip") ?? undefined,
+			ua: req.headers.get("user-agent") ?? undefined,
+		});
 
 		const headers = new Headers({ "content-type": "application/json" });
 		await setAuthCookie(env, headers, "bs_at", at, { maxAgeSeconds: 60 * 15 });
 		await setAuthCookie(env, headers, "bs_rt", rt.token, { maxAgeSeconds: 60 * 60 * 24 * 30 });
+		const csrf = await issueCsrf(env, user.id);
+		setReadableCookie(headers, "bs_csrf", csrf, 60 * 60);
+
 		return new Response(JSON.stringify({ tenantSlug: tenant.slug, userId: user.id }), { status: 200, headers });
 	} catch (e) {
 		return errorResponse(e);
