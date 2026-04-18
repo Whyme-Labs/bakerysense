@@ -322,6 +322,46 @@ Eight built-in presets with default base URLs and suggested models:
 npx vitest run tests/unit/connector.test.ts
 ```
 
+## Auth API Routes
+
+### POST /api/auth/signup (`src/app/api/auth/signup/route.ts`)
+
+Registers a new tenant + admin user in one atomic sequence.
+
+**Request body:**
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "AtLeast12chars",
+  "tenantName": "My Bakery",
+  "tenantSlug": "my-bakery",
+  "vertical": "bakery"
+}
+```
+
+`vertical` must be one of: `bakery`, `grocery`, `pharmacy`, `retail`, `other`.
+
+**On success (201):**
+
+- Inserts `tenants`, `users`, `memberships` (role `tenant_admin`), and a default `branches` row (`name: "HQ"`)
+- Issues a 15-minute ES256 JWT access token (`bs_at` cookie, HttpOnly, Secure, SameSite=Strict)
+- Issues a 30-day refresh token stored in KV (`bs_rt` cookie, same security attributes)
+- Returns `{ tenantSlug, userId, tenantId }`
+
+**Error responses:**
+
+| Status | Condition |
+|---|---|
+| 400 | Zod validation failure (bad email, password < 12 chars, invalid slug/vertical) |
+| 409 | Email already registered or tenant slug already taken |
+
+**Implementation notes:**
+
+- `getCloudflareContext()` from `@opennextjs/cloudflare` provides the `env` binding inside the Next.js route handler
+- Password is hashed with Argon2id before any DB write; plaintext never persists
+- IDs use `crypto.getRandomValues` (globally available in Workers) with a `prefix_base64` format
+
 ## Tenant Helpers (`src/lib/tenant.ts`)
 
 Three database helpers for resolving tenant context from JWT claims:
@@ -346,8 +386,10 @@ All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest
 
 D1 migration fixtures are loaded via a Vitest `globalSetup` (`tests/globalSetup.ts`) that reads the `drizzle/` SQL files using `readD1Migrations` and injects them into the Worker context through `tests/vitestSetup.ts`, making `env.MIGRATIONS` available to `applyD1Migrations` calls in tests.
 
+Integration tests (`tests/integration/`) use `SELF.fetch` from `cloudflare:test` to dispatch HTTP requests through the worker entrypoint. For the test environment, `wrangler.jsonc` `env.test.main` points to `worker-test.js` — a thin dispatcher that sets the `getCloudflareContext()` global symbol and routes requests to the relevant Next.js route handler modules. This avoids a full `opennextjs-cloudflare build` for every test run.
+
 ```bash
-# Run all tests (21 total)
+# Run all tests (23 total)
 npx vitest run
 
 # Run individual suites
@@ -357,6 +399,7 @@ npx vitest run tests/unit/jwks.test.ts
 npx vitest run tests/unit/rbac.test.ts
 npx vitest run tests/unit/tenant.test.ts
 npx vitest run tests/unit/connector.test.ts
+npx vitest run tests/integration/auth-flow.test.ts
 ```
 
 Note: Argon2 tests are CPU-intensive and require the 30-second `testTimeout` set in `vitest.config.mts`.
