@@ -30,11 +30,14 @@ export default {
     console.log(`queue invoked: queue=${batch.queue} messages=${batch.messages.length}`);
     if (batch.queue === "retrain-queue" || batch.queue === "retrain-queue-test") {
       for (const msg of batch.messages) {
+        const job = msg.body as RetrainJob;
+        console.log(`retrain_start tenant=${job.tenantId} triggeredBy=${job.triggeredBy}`);
         try {
-          await handleRetrainMessage(env, msg.body as RetrainJob);
+          const r = await handleRetrainMessage(env, job);
+          console.log(`retrain_done tenant=${job.tenantId} r2Key=${r.r2Key} rows=${r.rowCount}`);
           msg.ack();
         } catch (e) {
-          console.error("retrain_message_failed", (e as Error).message);
+          console.error(`retrain_failed tenant=${job.tenantId}:`, (e as Error).message, (e as Error).stack);
           msg.retry();
         }
       }

@@ -13,7 +13,9 @@ export interface RetrainJob {
 
 export async function enqueueRetrain(env: CloudflareEnv, tenantId: string, triggeredBy: "cron" | "manual", actorUserId?: string): Promise<void> {
   const job: RetrainJob = { type: "retrain", tenantId, triggeredBy, triggeredAt: Date.now() };
-  await env.RETRAIN_QUEUE.send(job);
+  // Write state + audit BEFORE enqueueing — otherwise the consumer can fire
+  // before this producer's follow-up writes complete, and our "queued"
+  // state overwrites the consumer's "awaiting_publish".
   await writeRetrainState(env, tenantId, { status: "queued", startedAt: Date.now() });
   await writeAudit(env, {
     tenantId,
@@ -21,6 +23,7 @@ export async function enqueueRetrain(env: CloudflareEnv, tenantId: string, trigg
     action: "retrain.enqueued",
     metadata: { triggeredBy },
   });
+  await env.RETRAIN_QUEUE.send(job);
 }
 
 export async function buildTrainingCsv(env: CloudflareEnv, tenantId: string, sinceIso: string): Promise<string> {
