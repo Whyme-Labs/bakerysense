@@ -9,6 +9,7 @@ import { POST as signoutPOST } from "./src/app/api/auth/signout/route.js";
 import { GET as meGET } from "./src/app/api/auth/me/route.js";
 import { GET as jwksGET } from "./src/app/api/.well-known/jwks.json/route.js";
 import { POST as rotateJwksPOST } from "./src/app/api/internal/rotate-jwks/route.js";
+import { POST as passwordChangePOST } from "./src/app/api/auth/password-change/route.js";
 
 const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
 
@@ -36,6 +37,11 @@ export default {
 
 		if (url.pathname === "/api/auth/signout") {
 			if (request.method === "POST") return signoutPOST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		if (url.pathname === "/api/auth/password-change") {
+			if (request.method === "POST") return passwordChangePOST(request);
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
