@@ -14,7 +14,7 @@ export function DriftBanner({ currentWape, baselineWape, sampleCount, slug }: Dr
   }
 
   return (
-    <div className="mb-6 rounded-lg border border-[var(--accent-warn)] bg-[color-mix(in_srgb,var(--accent-warn)_10%,transparent)] px-4 py-3">
+    <div className="mb-6 rounded-lg border border-[var(--accent-warn)] bg-[var(--accent-warn)]/10 px-4 py-3">
       <p className="text-sm text-[var(--ink)]">
         Model accuracy has drifted for this product. Consider retraining or adding more recent actuals.
       </p>
