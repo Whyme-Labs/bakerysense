@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ConfidenceBar } from "./ConfidenceBar";
+import { ReportWrongForecastButton } from "@/components/feedback/ReportWrongForecastButton";
 
 interface ForecastRow {
   sku: string;
@@ -7,7 +8,7 @@ interface ForecastRow {
   quantiles: Record<string, number>;
 }
 
-export function BakePlanTable({ rows, slug, onDate }: { rows: ForecastRow[]; slug: string; onDate: string }) {
+export function BakePlanTable({ rows, slug, branch, onDate }: { rows: ForecastRow[]; slug: string; branch: string; onDate: string }) {
   const max = Math.max(...rows.map((r) => r.quantiles["q0.9"] ?? 0), 1);
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-[var(--shadow-sm)]">
@@ -20,6 +21,7 @@ export function BakePlanTable({ rows, slug, onDate }: { rows: ForecastRow[]; slu
             <th className="px-4 py-3">confidence</th>
             <th className="px-4 py-3 text-right tabular-nums">bake</th>
             <th className="sr-only">actions</th>
+            <th className="sr-only">report</th>
           </tr>
         </thead>
         <tbody>
@@ -34,6 +36,9 @@ export function BakePlanTable({ rows, slug, onDate }: { rows: ForecastRow[]; slu
               <td className="px-4 py-3 text-right">
                 <Link href={`/t/${slug}/sku/${encodeURIComponent(r.sku)}?on_date=${onDate}`}
                       className="text-xs text-[var(--accent-info)] hover:underline">drivers →</Link>
+              </td>
+              <td className="px-4 py-3 text-right">
+                <ReportWrongForecastButton slug={slug} branch={branch} family={r.sku} date={onDate} />
               </td>
             </tr>
           ))}

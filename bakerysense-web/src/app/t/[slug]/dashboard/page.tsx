@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { TenantHeader } from "@/components/shell/TenantHeader";
 import { BakePlanTable } from "@/components/forecast/BakePlanTable";
+import { CloseOutDayTrigger } from "@/components/feedback/CloseOutDayDialog";
 
 interface SearchParams { branch?: string; on_date?: string }
 
@@ -39,6 +40,7 @@ export default async function DashboardPage({
   const data = await loadForecasts(slug, branch, onDate, cookie) as {
     forecasts: Array<{ sku: string; bake_quantity: number; quantiles: Record<string, number> }>;
   };
+  const closeOutRows = data.forecasts.map((f) => ({ sku: f.sku, recommendedBake: f.bake_quantity }));
   return (
     <>
       <TenantHeader slug={slug} />
@@ -47,12 +49,15 @@ export default async function DashboardPage({
           <h1 className="text-2xl font-semibold">Today&rsquo;s bake plan</h1>
           <p className="mt-1 text-sm text-[var(--ink-muted)]">Branch {branch} · {onDate}</p>
         </div>
-        <a href={`/t/${slug}/chat?prefill=Summarise%20today's%20bake%20plan%20for%20branch%20${branch}`}
-           className="text-sm text-[var(--accent-info)] hover:underline">
-          Ask Gemma for a narrative →
-        </a>
+        <div className="flex items-center gap-4">
+          <CloseOutDayTrigger slug={slug} branch={branch} date={onDate} rows={closeOutRows} />
+          <a href={`/t/${slug}/chat?prefill=Summarise%20today's%20bake%20plan%20for%20branch%20${branch}`}
+             className="text-sm text-[var(--accent-info)] hover:underline">
+            Ask Gemma for a narrative →
+          </a>
+        </div>
       </div>
-      <BakePlanTable rows={data.forecasts} slug={slug} onDate={onDate} />
+      <BakePlanTable rows={data.forecasts} slug={slug} branch={branch} onDate={onDate} />
     </>
   );
 }
