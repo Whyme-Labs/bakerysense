@@ -1,0 +1,31 @@
+/* bakery.tokens.css — default vertical theme */
+:root {
+  --brand-50:  oklch(0.98 0.02 70);
+  --brand-100: oklch(0.95 0.04 70);
+  --brand-200: oklch(0.91 0.07 70);
+  --brand-500: oklch(0.76 0.14 70);   /* honey amber */
+  --brand-700: oklch(0.52 0.13 60);   /* baked terracotta */
+  --brand-900: oklch(0.30 0.10 45);
+
+  --surface:        oklch(0.99 0 0);
+  --surface-muted:  oklch(0.97 0.01 80);
+  --surface-sunken: oklch(0.95 0.01 80);
+
+  --ink:       oklch(0.22 0 0);
+  --ink-muted: oklch(0.50 0.01 0);
+  --ink-subtle:oklch(0.68 0.01 0);
+
+  --border:       oklch(0.92 0.01 80);
+  --border-strong:oklch(0.82 0.01 80);
+
+  --accent-warn: oklch(0.72 0.16 40);
+  --accent-good: oklch(0.68 0.14 155);
+  --accent-info: oklch(0.62 0.11 240);
+
+  --radius-sm: 4px;
+  --radius:    8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.06);
+  --shadow:    0 4px 10px -2px oklch(0 0 0 / 0.08);
+}
