@@ -34,7 +34,7 @@ export function __resetFeaturesCacheForTest(): void {
 }
 
 export interface TenantModels {
-  quantiles: Record<string, any>;  // raw payload keyed by quantile string ("0.1", "0.3", ...)
+  quantiles: Record<string, unknown>;  // raw payload keyed by quantile string ("0.1", "0.3", ...)
 }
 
 const modelCache = new Map<string, Promise<TenantModels>>();
@@ -47,8 +47,8 @@ export async function loadTenantModels(env: CloudflareEnv, tenantId: string): Pr
     const obj = await env.MODELS.get(key);
     if (!obj) throw new Error(`models not found: ${key}`);
     const text = await obj.text();
-    const parsed = JSON.parse(text) as any;
-    return { quantiles: parsed.quantiles ?? parsed } as TenantModels;
+    const parsed = JSON.parse(text) as { quantiles?: Record<string, unknown> };
+    return { quantiles: parsed.quantiles ?? (parsed as Record<string, unknown>) } as TenantModels;
   })();
   modelCache.set(tenantId, p);
   try { return await p; } catch (e) { modelCache.delete(tenantId); throw e; }

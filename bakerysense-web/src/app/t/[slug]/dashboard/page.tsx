@@ -36,7 +36,9 @@ export default async function DashboardPage({
     );
   }
 
-  const data = await loadForecasts(slug, branch, onDate, cookie) as { forecasts: any[] };
+  const data = await loadForecasts(slug, branch, onDate, cookie) as {
+    forecasts: Array<{ sku: string; bake_quantity: number; quantiles: Record<string, number> }>;
+  };
   return (
     <>
       <TenantHeader slug={slug} />

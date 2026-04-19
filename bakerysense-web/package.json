@@ -10,7 +10,7 @@
     "test:unit": "vitest run --config vitest.unit.config.mts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "next lint",
+    "lint": "eslint src",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run test:unit",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
