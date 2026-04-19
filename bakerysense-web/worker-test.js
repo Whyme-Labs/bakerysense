@@ -225,6 +225,15 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// GET /api/actuals/metrics — literal match before :id regex
+		if (url.pathname === "/api/actuals/metrics") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/actuals/metrics/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		// POST /api/actuals/bulk — literal match before :id regex
 		if (url.pathname === "/api/actuals/bulk") {
 			if (request.method === "POST") {
