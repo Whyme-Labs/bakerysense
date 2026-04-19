@@ -1,4 +1,5 @@
 import type { PresetId } from "./presets";
+import { readFixture, requestHash, writeFixture, type ReplayRequest } from "./replay";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -37,12 +38,35 @@ export interface LLMClientOpts {
   apiKey: string | null;
   maxTokens?: number;
   temperature?: number;
+  env?: CloudflareEnv; // optional — when present, enables fixture replay
 }
 
 export class LLMClient {
   constructor(private readonly opts: LLMClientOpts) {}
 
   async chat(messages: ChatMessage[], tools: ToolSchema[]): Promise<ChatResponse> {
+    const env = this.opts.env;
+    const replayEnabled = env && (env as unknown as { BS_REPLAY_FIXTURES?: string }).BS_REPLAY_FIXTURES === "1";
+    const recordEnabled = env && (env as unknown as { BS_RECORD_FIXTURES?: string }).BS_RECORD_FIXTURES === "1";
+    const reqShape: ReplayRequest = {
+      preset: this.opts.preset,
+      model: this.opts.model,
+      messages,
+      tools,
+      temperature: this.opts.temperature ?? 0.3,
+    };
+    let reqHash = "";
+
+    if (replayEnabled && env) {
+      reqHash = requestHash(reqShape);
+      const fixture = await readFixture(env, reqHash);
+      if (fixture) return fixture;
+      if (!recordEnabled) {
+        throw new Error(`llm_replay: no fixture for hash ${reqHash} (messages=${messages.length}, tools=${tools.length})`);
+      }
+      // else fall through to real fetch and record below
+    }
+
     const { shapeRequest } = await import("./presets");
     const req = shapeRequest(this.opts.preset, {
       baseUrl: this.opts.baseUrl,
@@ -67,7 +91,12 @@ export class LLMClient {
       throw new Error(`LLM ${this.opts.preset} ${res.status}: ${body.slice(0, 300)}`);
     }
     const payload = (await res.json()) as unknown;
-    return normalizeResponse(payload);
+    const normalized = normalizeResponse(payload);
+
+    if (recordEnabled && env && reqHash) {
+      await writeFixture(env, reqHash, normalized);
+    }
+    return normalized;
   }
 }
 

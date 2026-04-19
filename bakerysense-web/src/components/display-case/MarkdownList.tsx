@@ -21,7 +21,7 @@ export function MarkdownList({ suggestions }: MarkdownListProps) {
   }
 
   return (
-    <ul className="flex flex-col gap-3">
+    <ul data-testid="markdown-list" className="flex flex-col gap-3">
       {suggestions.map((item) => (
         <li
           key={item.sku}

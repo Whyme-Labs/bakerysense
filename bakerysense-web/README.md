@@ -644,6 +644,47 @@ Deletes a chat session from KV (accepts `{ sessionId: string }` body). No-op if 
 
 The `CHAT_QUEUE` binding is declared in `wrangler.jsonc`. The queue consumer default export (`src/lib/queue-consumer.ts`) is **not** wired into the OpenNext build in this task — wiring requires editing `open-next.config.ts` and is deferred to deploy-time. Integration tests in P2.14 invoke the consumer directly.
 
+## LLM Fixture Replayer (`src/lib/llm/replay.ts`)
+
+The **LLM fixture replayer** enables deterministic E2E and integration tests by intercepting `LLMClient.chat()` calls and serving pre-recorded responses from Cloudflare R2 instead of making real upstream API calls.
+
+### How it works
+
+When `BS_REPLAY_FIXTURES=1` is set in the environment, `LLMClient.chat()` computes a **16-hex-char SHA-256 hash** over the canonical JSON of the request (preset, model, messages, tools, temperature), then looks up `fixtures/llm/<hash>.json` in R2 (`MODELS` bucket). If found, it returns that response immediately. If not found and `BS_RECORD_FIXTURES=1` is also set, the real upstream call proceeds and the response is written to R2. If replay is enabled but the fixture is missing and record mode is off, an error is thrown.
+
+### Environment flags
+
+| Variable | Effect |
+|---|---|
+| `BS_REPLAY_FIXTURES=1` | Enable fixture lookup; error if fixture missing and record off |
+| `BS_RECORD_FIXTURES=1` | Fall through to real LLM and write response to R2 (only effective with `BS_REPLAY_FIXTURES=1`) |
+
+### API
+
+```ts
+import { requestHash, readFixture, writeFixture } from "@/lib/llm/replay";
+import type { ReplayRequest } from "@/lib/llm/replay";
+
+// Compute deterministic hash for a request shape
+const hash = requestHash({ preset, model, messages, tools, temperature });
+
+// Read/write fixtures directly (used internally by LLMClient)
+const response = await readFixture(env, hash);  // null if not found
+await writeFixture(env, hash, response);
+```
+
+### Fixture files
+
+Fixture JSON files live under `e2e/fixtures/llm/` with filenames matching their 16-char hash (e.g. `a1b2c3d4e5f6a7b8.json`). See [`e2e/fixtures/llm/README.md`](e2e/fixtures/llm/README.md) for recording instructions.
+
+### Call sites wired with env
+
+- `src/lib/queue-consumer.ts` — passes `env` to `LLMClient` constructor so the queue worker benefits from replay in E2E tests.
+
+```bash
+npx vitest run --config vitest.unit.config.mts tests/unit/components/llm-replay.test.ts
+```
+
 ## Testing
 
 All unit tests run inside the Cloudflare Workers sandbox via `@cloudflare/vitest-pool-workers`. The vitest config (`vitest.config.mts`) uses the `cloudflareTest` plugin with `wrangler.jsonc` (`env.test` environment) providing placeholder secrets and KV/D1 bindings for Miniflare.

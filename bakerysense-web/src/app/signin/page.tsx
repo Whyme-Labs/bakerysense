@@ -39,7 +39,7 @@ export default function SigninPage() {
 			<form onSubmit={onSubmit} className="space-y-4">
 				<label className="block text-sm">
 					Tenant slug
-					<input data-testid="signin-tenant" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} required pattern="[a-z0-9-]{1,40}" className="mt-1 block w-full rounded border px-3 py-2" />
+					<input data-testid="signin-slug" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} required pattern="[a-z0-9-]{1,40}" className="mt-1 block w-full rounded border px-3 py-2" />
 				</label>
 				<label className="block text-sm">
 					Email

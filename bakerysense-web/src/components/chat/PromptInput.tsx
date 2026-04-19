@@ -39,11 +39,13 @@ export function PromptInput({ onSend, disabled }: Props) {
         disabled={disabled}
         onKeyDown={handleKeyDown}
         placeholder="Ask a question... (Ctrl+Enter to send)"
+        data-testid="prompt-input"
         className="flex-1 resize-none rounded-md border border-[var(--border,#e5e7eb)] bg-white px-3 py-2 text-sm text-[var(--foreground,#111827)] placeholder-[var(--foreground-muted,#9ca3af)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-500,#3b82f6)] disabled:cursor-not-allowed disabled:opacity-50"
       />
       <button
         type="submit"
         disabled={disabled}
+        data-testid="prompt-submit"
         className="rounded-md bg-[var(--brand-500,#3b82f6)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-600,#2563eb)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         Send

@@ -11,6 +11,7 @@ export function PhotoUpload({ onUpload, disabled }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  const [pendingBase64, setPendingBase64] = useState<string | null>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -20,9 +21,15 @@ export function PhotoUpload({ onUpload, disabled }: PhotoUploadProps) {
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
       setPreview(dataUrl);
-      onUpload(dataUrl);
+      setPendingBase64(dataUrl);
     };
     reader.readAsDataURL(file);
+  }
+
+  function handleSubmit() {
+    if (pendingBase64) {
+      onUpload(pendingBase64);
+    }
   }
 
   return (
@@ -34,6 +41,7 @@ export function PhotoUpload({ onUpload, disabled }: PhotoUploadProps) {
       >
         <input
           ref={inputRef}
+          data-testid="photo-upload-input"
           type="file"
           accept="image/*"
           className="sr-only"
@@ -81,6 +89,7 @@ export function PhotoUpload({ onUpload, disabled }: PhotoUploadProps) {
               onClick={() => {
                 setPreview(null);
                 setFilename(null);
+                setPendingBase64(null);
                 if (inputRef.current) inputRef.current.value = "";
               }}
             >
@@ -88,6 +97,17 @@ export function PhotoUpload({ onUpload, disabled }: PhotoUploadProps) {
             </button>
           )}
         </p>
+      )}
+
+      {pendingBase64 && !disabled && (
+        <button
+          type="button"
+          data-testid="photo-upload-submit"
+          onClick={handleSubmit}
+          className="rounded bg-[var(--accent-info)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Analyse photo
+        </button>
       )}
 
       {disabled && (

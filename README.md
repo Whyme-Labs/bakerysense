@@ -1,10 +1,20 @@
 # BakerySense
 
 [![License: CC-BY-4.0](https://img.shields.io/badge/License-CC--BY--4.0-lightgrey.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)](./tests)
+[![Tests](https://img.shields.io/badge/tests-172%20passing-brightgreen)](./tests)
 [![Gemma 4](https://img.shields.io/badge/Gemma%204-E4B%20Q4__K__M-orange)](https://ollama.com/library/gemma4)
 
 Offline-first production decision copilot for bakeries. Submission for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-4-good-hackathon) (deadline **2026-05-18**).
+
+## Live demo
+
+- **App:** `https://bakerysense-web.<account>.workers.dev` (replace after deploy — see [`docs/deploy.md`](docs/deploy.md))
+- **Video:** `https://www.youtube.com/watch?v=<id>` (replace after recording — storyboard in [`docs/demo/storyboard.md`](docs/demo/storyboard.md))
+- **Writeup:** [`docs/demo/writeup.md`](docs/demo/writeup.md) (≤1500 words)
+
+Demo credentials after running `POST /api/admin/seed-demo`:
+- `demo@bakerysense.app` / `Demo2026DemoDemo` — `tenant_admin`, all 5 branches
+- `manager@bakerysense.app` / `Manager2026Manager` — `branch_manager`, 2 branches
 
 ## What it does
 
@@ -106,7 +116,7 @@ python -m pytest tests/ -v
 
 49 Python tests covering features (leak-freeness), forecaster (train/predict/save/load/SHAP), newsvendor math, eval metrics, agent tool dispatch, vision JSON parsing, session tool-calling loop, and JS↔Python gbm-walker parity (700 cases, 7 quantiles, 100 sampled rows, all within 1e-4 absolute error).
 
-On the web side (bakerysense-web/, Cloudflare Workers + Next.js 16), 113 TypeScript tests: 106 integration tests in the Miniflare workers pool (auth, refresh, JWKS rotation, RBAC matrix, multi-tenant isolation, connector CRUD, chat turn POST, dashboard-flow, chat-ui-smoke, admin-connectors-flow, actuals-flow, metrics-rolling-wape, retrain-pipeline) + 7 unit tests (ConfidenceBar render, pure-math metrics wape/drift) in happy-dom.
+On the web side (bakerysense-web/, Cloudflare Workers + Next.js 16), 123 TypeScript tests: 106 integration tests in the Miniflare workers pool (auth, refresh, JWKS rotation, RBAC matrix, multi-tenant isolation, connector CRUD, chat turn POST, dashboard-flow, chat-ui-smoke, admin-connectors-flow, actuals-flow, metrics-rolling-wape, retrain-pipeline) + 11 unit tests in happy-dom (ConfidenceBar render, pure-math metrics wape/drift, LLM-replay request-hash determinism) + 6 Playwright E2E scenarios (2 more `fixme`d pending recorded LLM fixtures). Grand total across Python + TypeScript + E2E: **172 tests**.
 
 ## Reproducibility
 
@@ -149,15 +159,14 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 **Week 1** (complete)
 - Scaffold, data loader (synthetic + real French Bakery support), features, LightGBM 7-quantile forecaster with save/load, newsvendor layer, SHAP explanations, agent tool surface, llama.cpp server wrapper, scripted/interactive demo, pytest suite.
 
-**Week 2** (in progress)
+**Week 2** (complete)
 - P1 Foundation — D1 schema, Argon2id, JWT ES256 + JWKS rotation, refresh-token tombstones, CSRF double-submit, RBAC, tenant-scoped connectors (8 presets, OpenRouter OAuth) ✓
 - P2 Forecasting Worker — pure-JS `gbm-walker` (700/700 parity with Python within 1e-4), R2 feature store + tree bundle, tool registry with 5 tools, Queue-driven agent loop, context compactor, SSE streaming ✓
 - P3 UI — landing, tenant shell, dashboard (BakePlanTable + ConfidenceBar), SKU detail (QuantileChart + DriverBars), chat with SSE rendering, display-case photo → Gemma vision → markdowns, admin (connectors/branches/users/audit), account settings ✓
 - P4 Feedback loop — `daily_actuals` + `forecast_snapshots` D1 tables, close-out-today dialog + inline "report actual" + CSV import, rolling WAPE badge on dashboard + drift banner on SKU detail, model-pointer KV layer for hot version-swap, retrain queue + manual trigger + training-inputs CSV export to R2, HMAC-signed `/api/internal/publish-model` with >10% rolling-MAE regression guard, `scripts/retrain_tenant.py` local retrain → publish flow ✓
-- TimesFM cold-start sidecar · markdown policy calibration · live deploy of the e2e path
+- P5 E2E + submission — Playwright 7-scenario coverage of the demo journey (landing/signin/dashboard/SKU-detail/chat/display-case/signout; 5+6 fixme until LLM fixtures recorded), LLM fixture replayer (`BS_REPLAY_FIXTURES=1`), idempotent `seedDemo` + HMAC `POST /api/admin/seed-demo`, GitHub Actions E2E workflow, deploy + smoke docs, demo storyboard + narration script + ≤1500-word Kaggle writeup + cover image spec ✓
 
-**Week 3**
-- QLoRA fine-tune via Unsloth on bakery vocabulary · Ollama packaging for Special Tech Track · markdown policy tuning.
-
-**Week 4**
-- Video with real bakery owner · submission writeup · final polish.
+**Week 3 / 4** (remaining)
+- Record the demo video with the bakery owner against `docs/demo/script.md` / `storyboard.md`
+- Deploy to Cloudflare Workers, seed the demo tenant, update the Live demo URL above
+- Stretch: QLoRA fine-tune via Unsloth on bakery vocabulary · Ollama modelfile packaging · TimesFM cold-start sidecar · markdown policy calibration

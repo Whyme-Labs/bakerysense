@@ -10,6 +10,7 @@ import { GET as meGET } from "./src/app/api/auth/me/route.js";
 import { GET as jwksGET } from "./src/app/api/.well-known/jwks.json/route.js";
 import { POST as rotateJwksPOST } from "./src/app/api/internal/rotate-jwks/route.js";
 import { POST as publishModelPOST } from "./src/app/api/internal/publish-model/route.js";
+import { POST as seedDemoPOST } from "./src/app/api/admin/seed-demo/route.js";
 import { POST as passwordChangePOST } from "./src/app/api/auth/password-change/route.js";
 
 const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
@@ -281,6 +282,12 @@ export default {
 				const mod = await import("./src/app/api/admin/retrain/route.ts");
 				return mod.POST(request);
 			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// POST /api/admin/seed-demo
+		if (url.pathname === "/api/admin/seed-demo") {
+			if (request.method === "POST") return seedDemoPOST(request);
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 

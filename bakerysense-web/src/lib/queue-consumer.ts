@@ -76,6 +76,7 @@ async function runTurn(env: CloudflareEnv, body: QueueMessage): Promise<void> {
     baseUrl: connector.baseUrl,
     model: connector.model,
     apiKey,
+    env,
   });
 
   // Append the user message to the persisted session
