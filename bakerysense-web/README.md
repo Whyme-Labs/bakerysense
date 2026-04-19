@@ -504,6 +504,57 @@ const m = loadTrees(models.quantiles["0.5"]);
 npx vitest run tests/unit/features.test.ts
 ```
 
+## Display-Case Photo API (`src/app/api/photo/route.ts`)
+
+**POST /api/photo** accepts a multimodal request, passes the display-case photo to the tenant's default LLM connector via OpenAI-compatible multimodal content-parts, then automatically calls `suggest_markdowns` to return discount recommendations in one round trip.
+
+### Request body
+
+```json
+{
+  "branchId": "brn1",
+  "imageBase64": "data:image/jpeg;base64,..."
+}
+```
+
+### Response
+
+```json
+{
+  "counts": { "BAGUETTE": 3, "CROISSANT": 7 },
+  "suggestions": {
+    "branch_id": "brn1",
+    "as_of": "2026-04-19",
+    "markdowns": [
+      { "sku": "BAGUETTE", "remaining": 3, "discount_pct": 30, "reason": "inventory > q0.7 forecast + 20%" }
+    ]
+  }
+}
+```
+
+### Implementation notes
+
+- Bypasses `LLMClient.chat()` (text-only) and calls the connector's `/chat/completions` endpoint directly with multimodal content-parts (`type: "image_url"`).
+- Requires a valid session + CSRF token (`x-csrf-token` header).
+- Strips markdown code fences from the LLM JSON response before parsing.
+
+### Display-case UI page (`src/app/t/[slug]/display-case/page.tsx`)
+
+Client page at `/t/:slug/display-case?branch=<branchId>` that:
+1. Accepts a photo via `PhotoUpload` (file picker + FileReader data-URL)
+2. POSTs to `/api/photo` and displays the returned per-SKU counts in an editable `CountsTable`
+3. Renders `MarkdownList` cards for each suggested discount
+4. Provides a "Chat about this" deep-link to the chat page pre-filled with the inventory JSON
+
+Components:
+- `src/components/display-case/PhotoUpload.tsx` — image picker with preview and upload-in-progress indicator
+- `src/components/display-case/CountsTable.tsx` — editable table with add/delete row
+- `src/components/display-case/MarkdownList.tsx` — discount suggestion cards
+
+```bash
+npx vitest run # 76/76 tests still pass — no new integration tests for photo endpoint
+```
+
 ## Tool Registry (`src/lib/tools/`)
 
 The **tool registry** exposes five LLM-callable tools for the forecasting chat assistant. All tools use Zod for input validation; the central `dispatch` function returns a structured error object (never throws) on unknown tools or validation failures.
