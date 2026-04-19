@@ -162,3 +162,4 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 
 **Week 4**
 - Video with real bakery owner · submission writeup · final polish.
+- P5 Tasks 13–14 complete: [`docs/demo/storyboard.md`](docs/demo/storyboard.md) (9-shot 3-min breakdown), [`docs/demo/script.md`](docs/demo/script.md) (word-for-word narration with timecodes), [`docs/demo/writeup.md`](docs/demo/writeup.md) (≤1500-word Kaggle writeup), [`docs/demo/cover-image-spec.md`](docs/demo/cover-image-spec.md) (1200×630 designer spec).
