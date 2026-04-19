@@ -1,5 +1,6 @@
 import { getDb } from "@/db/client";
 import { forecastSnapshots } from "@/db/schema";
+import { readActive } from "./model-pointer";
 
 function newId(): string {
   const b = crypto.getRandomValues(new Uint8Array(9));
@@ -28,4 +29,9 @@ export async function writeForecastSnapshot(
     target: [forecastSnapshots.tenantId, forecastSnapshots.branchId, forecastSnapshots.family, forecastSnapshots.date, forecastSnapshots.modelVersion],
     set: { bakeQuantity: row.bakeQuantity, quantilesJson: JSON.stringify(row.quantiles), servedAt: Date.now() },
   });
+}
+
+export async function activeModelVersion(env: CloudflareEnv, tenantId: string): Promise<number> {
+  const a = await readActive(env, tenantId);
+  return a?.version ?? 0;
 }

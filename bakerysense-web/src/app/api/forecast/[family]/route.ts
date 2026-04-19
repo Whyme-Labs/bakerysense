@@ -2,7 +2,7 @@ import { dispatch } from "@/lib/tools";
 import { buildToolCtx } from "@/lib/tool-rest-adapter";
 import { BadRequest, errorResponse } from "@/lib/errors";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { writeForecastSnapshot } from "@/lib/snapshots";
+import { writeForecastSnapshot, activeModelVersion } from "@/lib/snapshots";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ family: 
           branchId,
           family: decodedFamily,
           date: onDate,
-          modelVersion: 0,
+          modelVersion: await activeModelVersion(env, session!.claims.tid),
           bakeQuantity,
           quantiles,
         });

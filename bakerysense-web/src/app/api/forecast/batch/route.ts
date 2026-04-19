@@ -2,7 +2,7 @@ import { dispatch } from "@/lib/tools";
 import { buildToolCtx } from "@/lib/tool-rest-adapter";
 import { BadRequest, errorResponse } from "@/lib/errors";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { writeForecastSnapshot } from "@/lib/snapshots";
+import { writeForecastSnapshot, activeModelVersion } from "@/lib/snapshots";
 
 export const runtime = "nodejs";
 
@@ -14,6 +14,7 @@ export async function GET(req: Request): Promise<Response> {
     const onDate = url.searchParams.get("on_date");
     if (!branchId || !onDate) throw new BadRequest("missing ?branch= or ?on_date=");
     const { session, ctx } = await buildToolCtx(env, req);
+    const modelVersion = await activeModelVersion(env, session!.claims.tid);
     const skusRes = await dispatch("list_skus", { branch_id: branchId }, ctx) as { skus?: string[] };
     const skus = skusRes.skus ?? [];
     const forecasts = await Promise.all(
@@ -30,7 +31,7 @@ export async function GET(req: Request): Promise<Response> {
               branchId,
               family: sku,
               date: onDate,
-              modelVersion: 0,
+              modelVersion,
               bakeQuantity,
               quantiles,
             });
