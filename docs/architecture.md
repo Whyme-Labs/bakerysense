@@ -196,6 +196,7 @@ Components (`src/components/`):
 ```
 shell/       Nav, BranchSelector, UserMenu, StatusBadge, TenantHeader, ErrorBoundary
 forecast/    ConfidenceBar, BakePlanTable, QuantileChart, DriverBars, TrendLine (hand-rolled SVG)
+feedback/    CloseOutDayDialog + CloseOutDayTrigger, ReportWrongForecastButton
 chat/        ChatThread, MessageBubble, ToolTrace, PromptInput, TurnStatus
 display-case/PhotoUpload, CountsTable, MarkdownList
 admin/       ConnectorList/Form/Test, MemberTable, InviteDialog, BranchTable/Editor, AuditLogTable
@@ -211,6 +212,17 @@ GET  /api/explain/[family]     → explain_drivers
 GET  /api/forecast/batch       → list_skus then forecast per SKU
 POST /api/photo                → direct multimodal fetch to connector + suggest_markdowns
 ```
+
+REST endpoints added by P4 for merchant actuals feedback:
+
+```
+POST /api/actuals              → upsert actual (branchId, family, date, actualBake?, actualSales?, wasteUnits?, recommendedBake?, source?)
+GET  /api/actuals?branch=      → list actuals for a branch
+```
+
+The P4 feedback loop adds two client components to the dashboard:
+- **`CloseOutDayDialog`** — fixed-position modal (portal-less) opened by a "Close out today" button in the dashboard header. Renders a table of all forecast SKUs with `actual_bake` and `actual_sales` number inputs. On save, fires `N` parallel `POST /api/actuals` calls (skipping blank rows). Managed by a co-located `CloseOutDayTrigger` client component that holds the `open` state.
+- **`ReportWrongForecastButton`** — inline ghost button in each `BakePlanTable` row that expands an absolute-positioned popover with a single `actualSales` input. Closes on outside click or after successful submit; shows a "Saved" indicator for 2 seconds.
 
 Visual identity: Geist Sans + Geist Mono, oklch design tokens in `src/app/tokens.css` (honey-amber bakery default, swappable for future verticals), Tailwind 4 utilities over token CSS variables. No chart library — all charts are hand-rolled SVG.
 
