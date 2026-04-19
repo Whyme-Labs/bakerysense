@@ -10,7 +10,8 @@ export type AuditAction =
 	| "oauth.initiated" | "oauth.completed"
 	| "branch.created" | "branch.updated" | "branch.deleted"
 	| "user.invited" | "member.role_changed" | "member.removed"
-	| "user.password_changed";
+	| "user.password_changed"
+	| "actuals.recorded" | "actuals.updated" | "actuals.deleted" | "actuals.bulk_imported";
 
 export async function writeAudit(
 	env: CloudflareEnv,

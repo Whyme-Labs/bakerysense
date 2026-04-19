@@ -225,6 +225,32 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// POST /api/actuals/bulk — literal match before :id regex
+		if (url.pathname === "/api/actuals/bulk") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/actuals/bulk/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// PATCH/DELETE /api/actuals/:id
+		const mActual = url.pathname.match(/^\/api\/actuals\/([^/]+)$/);
+		if (mActual) {
+			const mod = await import("./src/app/api/actuals/[id]/route.ts");
+			if (request.method === "PATCH") return mod.PATCH(request, { params: Promise.resolve({ id: mActual[1] }) });
+			if (request.method === "DELETE") return mod.DELETE(request, { params: Promise.resolve({ id: mActual[1] }) });
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET/POST /api/actuals
+		if (url.pathname === "/api/actuals") {
+			const mod = await import("./src/app/api/actuals/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };
