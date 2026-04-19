@@ -104,7 +104,9 @@ python scripts/demo_agent.py
 python -m pytest tests/ -v
 ```
 
-49 tests covering features (leak-freeness), forecaster (train/predict/save/load/SHAP), newsvendor math, eval metrics, agent tool dispatch, vision JSON parsing, session tool-calling loop, and JS↔Python gbm-walker parity (700 cases, 7 quantiles, 100 sampled rows, all within 1e-4 absolute error).
+49 Python tests covering features (leak-freeness), forecaster (train/predict/save/load/SHAP), newsvendor math, eval metrics, agent tool dispatch, vision JSON parsing, session tool-calling loop, and JS↔Python gbm-walker parity (700 cases, 7 quantiles, 100 sampled rows, all within 1e-4 absolute error).
+
+On the web side (bakerysense-web/, Cloudflare Workers + Next.js 16), 90 TypeScript tests: 89 integration tests in the Miniflare workers pool (auth, refresh, JWKS rotation, RBAC matrix, multi-tenant isolation, connector CRUD, chat turn POST, dashboard-flow, chat-ui-smoke, admin-connectors-flow) + 1 React component test (ConfidenceBar render) in happy-dom.
 
 ## Reproducibility
 
@@ -122,7 +124,7 @@ git clone <repo> && cd gemma-4-hack
 uv venv && source .venv/bin/activate
 uv pip install -e '.[dev]'
 python -m pytest tests/ -q              # Python tests
-cd bakerysense-web && npx vitest run    # 49 JS tests (48 unit + 1 parity)
+cd bakerysense-web && npm run verify    # typecheck + eslint + 89 workers tests + 1 component test
 python scripts/train_baseline.py        # MASE < 1, saves models/gbm/
 python scripts/demo_agent.py --tools-only
 ```
@@ -148,12 +150,10 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 - Scaffold, data loader (synthetic + real French Bakery support), features, LightGBM 7-quantile forecaster with save/load, newsvendor layer, SHAP explanations, agent tool surface, llama.cpp server wrapper, scripted/interactive demo, pytest suite.
 
 **Week 2** (in progress)
-- P2.01 Web scaffold (Next.js + Cloudflare Workers AI) ✓
-- P2.02 JWT/RBAC auth ✓
-- P2.03 Python `export_trees` → JSON tree schema with categorical + default_left support ✓
-- P2.04 Pure-JS `gbm-walker` (predict + approximate SHAP) ✓
-- P2.05 JS↔Python parity harness (700 cases, all within 1e-4 abs error) ✓
-- TimesFM cold-start sidecar · multimodal photo → unit count · markdown policy calibration · full Gemma conversation loop
+- P1 Foundation — D1 schema, Argon2id, JWT ES256 + JWKS rotation, refresh-token tombstones, CSRF double-submit, RBAC, tenant-scoped connectors (8 presets, OpenRouter OAuth) ✓
+- P2 Forecasting Worker — pure-JS `gbm-walker` (700/700 parity with Python within 1e-4), R2 feature store + tree bundle, tool registry with 5 tools, Queue-driven agent loop, context compactor, SSE streaming ✓
+- P3 UI — landing, tenant shell, dashboard (BakePlanTable + ConfidenceBar), SKU detail (QuantileChart + DriverBars), chat with SSE rendering, display-case photo → Gemma vision → markdowns, admin (connectors/branches/users/audit), account settings ✓
+- TimesFM cold-start sidecar · markdown policy calibration · live deploy of the e2e path
 
 **Week 3**
 - QLoRA fine-tune via Unsloth on bakery vocabulary · Ollama packaging for Special Tech Track · markdown policy tuning.

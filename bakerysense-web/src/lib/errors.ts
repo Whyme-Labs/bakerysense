@@ -12,6 +12,11 @@ export function errorResponse(e: unknown): Response {
 	if (e instanceof HttpError) {
 		return Response.json({ error: e.message, code: e.code }, { status: e.status });
 	}
+	// Handle errors that carry a numeric `status` property (e.g. ForbiddenError / NotFoundError from rbac.ts)
+	if (e instanceof Error && typeof (e as unknown as { status?: unknown }).status === "number") {
+		const status = (e as unknown as { status: number }).status;
+		return Response.json({ error: e.message }, { status });
+	}
 	console.error("unhandled error", e);
 	return Response.json({ error: "internal" }, { status: 500 });
 }

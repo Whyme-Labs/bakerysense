@@ -170,6 +170,52 @@ See `bakerysense-web/src/lib/connector.ts` for CRUD helpers and `src/lib/connect
 Injected via `wrangler secret put` (production) or `.dev.vars` (local):
 `SESSION_SIGNING_KEY`, `JWKS_ENCRYPTION_KEY`, `CONNECTOR_MEK`, `OPENROUTER_API_KEY`, `OPENROUTER_OAUTH_CLIENT_ID`, `OPENROUTER_OAUTH_CLIENT_SECRET`, `OPS_ROTATE_SECRET`.
 
+### UI layer (Next.js App Router)
+
+The web surface is tenant-scoped at `/t/[slug]/*`. Session is ES256 JWT in an HttpOnly `bs_at` cookie, accompanied by a CSRF token in a readable `bs_csrf` cookie; every mutating request carries the CSRF token in the `X-CSRF-Token` header, auto-injected by `src/lib/api-client.ts::apiFetch`. `src/lib/use-session.ts` is the React hook that loads `/api/auth/me`.
+
+Pages (`src/app/`):
+
+```
+/                              landing (stats + sample exchange)
+/signin, /signup               auth (P1)
+/t/[slug]/layout.tsx           shell — Nav, BranchSelector, UserMenu, StatusBadge
+/t/[slug]/dashboard            today's bake plan (BakePlanTable + ConfidenceBar)
+/t/[slug]/sku/[family]         quantile band + SHAP drivers + trend sparkline
+/t/[slug]/chat                 Gemma conversation, SSE-streamed tool trace + answers
+/t/[slug]/display-case         photo upload → Gemma vision → markdown suggestions
+/t/[slug]/admin/connectors     per-tenant LLM connector CRUD + OpenRouter OAuth
+/t/[slug]/admin/branches       branch CRUD
+/t/[slug]/admin/users          member invite + role change + remove
+/t/[slug]/admin/audit          last 100 audit-log entries
+/account/settings              password change + dev BYOK overrides (localStorage)
+```
+
+Components (`src/components/`):
+
+```
+shell/       Nav, BranchSelector, UserMenu, StatusBadge, TenantHeader, ErrorBoundary
+forecast/    ConfidenceBar, BakePlanTable, QuantileChart, DriverBars, TrendLine (hand-rolled SVG)
+chat/        ChatThread, MessageBubble, ToolTrace, PromptInput, TurnStatus
+display-case/PhotoUpload, CountsTable, MarkdownList
+admin/       ConnectorList/Form/Test, MemberTable, InviteDialog, BranchTable/Editor, AuditLogTable
+account/     PasswordChange, DevOverridesPanel
+```
+
+REST endpoints added by P3 that dispatch directly to the tool registry (bypassing Gemma) for the dashboard and detail pages:
+
+```
+GET  /api/skus?branch=         → list_skus
+GET  /api/forecast/[family]    → forecast
+GET  /api/explain/[family]     → explain_drivers
+GET  /api/forecast/batch       → list_skus then forecast per SKU
+POST /api/photo                → direct multimodal fetch to connector + suggest_markdowns
+```
+
+Visual identity: Geist Sans + Geist Mono, oklch design tokens in `src/app/tokens.css` (honey-amber bakery default, swappable for future verticals), Tailwind 4 utilities over token CSS variables. No chart library — all charts are hand-rolled SVG.
+
+Test matrix (Cloudflare Miniflare workers pool via `@cloudflare/vitest-pool-workers`, plus happy-dom for React component tests): 89 workers tests (auth/refresh/JWKS rotation/RBAC matrix/multi-tenant isolation/connector CRUD/chat turn/dashboard-flow/chat-ui-smoke/admin-connectors-flow) + 1 component test (ConfidenceBar render), all passing.
+
 ## Status by module
 
 | Module | Day 1 | Week 2 | Week 3 | Week 4 |

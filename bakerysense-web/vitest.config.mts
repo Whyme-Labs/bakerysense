@@ -9,6 +9,7 @@ export default defineConfig({
 	],
 	test: {
 		include: ["tests/**/*.test.ts"],
+		exclude: ["tests/unit/components/**"],
 		testTimeout: 30000,
 		globalSetup: ["tests/globalSetup.ts"],
 		setupFiles: ["tests/vitestSetup.ts"],

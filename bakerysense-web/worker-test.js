@@ -9,6 +9,7 @@ import { POST as signoutPOST } from "./src/app/api/auth/signout/route.js";
 import { GET as meGET } from "./src/app/api/auth/me/route.js";
 import { GET as jwksGET } from "./src/app/api/.well-known/jwks.json/route.js";
 import { POST as rotateJwksPOST } from "./src/app/api/internal/rotate-jwks/route.js";
+import { POST as passwordChangePOST } from "./src/app/api/auth/password-change/route.js";
 
 const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
 
@@ -39,6 +40,11 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		if (url.pathname === "/api/auth/password-change") {
+			if (request.method === "POST") return passwordChangePOST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		if (url.pathname === "/api/auth/me") {
 			if (request.method === "GET") return meGET(request);
 			return new Response("Method Not Allowed", { status: 405 });
@@ -59,6 +65,13 @@ export default {
 		if (mDefault && request.method === "POST") {
 			const mod = await import("./src/app/api/connector/[id]/default/route.ts");
 			return mod.POST(request, { params: Promise.resolve({ id: mDefault[1] }) });
+		}
+
+		// POST /api/connector/:id/test
+		const mTest = url.pathname.match(/^\/api\/connector\/([^/]+)\/test$/);
+		if (mTest && request.method === "POST") {
+			const mod = await import("./src/app/api/connector/[id]/test/route.ts");
+			return mod.POST(request, { params: Promise.resolve({ id: mTest[1] }) });
 		}
 
 		// DELETE /api/connector/:id
@@ -122,6 +135,92 @@ export default {
 			if (request.method === "POST") {
 				const mod = await import("./src/app/api/chat/reset/route.ts");
 				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/skus
+		if (url.pathname === "/api/skus") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/skus/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/forecast/batch — must match BEFORE /api/forecast/:family
+		if (url.pathname === "/api/forecast/batch") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/forecast/batch/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/forecast/:family
+		const mForecastFamily = url.pathname.match(/^\/api\/forecast\/([^/]+)$/);
+		if (mForecastFamily && request.method === "GET") {
+			const family = decodeURIComponent(mForecastFamily[1]);
+			const mod = await import("./src/app/api/forecast/[family]/route.ts");
+			return mod.GET(request, { params: Promise.resolve({ family }) });
+		}
+
+		// GET /api/explain/:family
+		const mExplainFamily = url.pathname.match(/^\/api\/explain\/([^/]+)$/);
+		if (mExplainFamily && request.method === "GET") {
+			const family = decodeURIComponent(mExplainFamily[1]);
+			const mod = await import("./src/app/api/explain/[family]/route.ts");
+			return mod.GET(request, { params: Promise.resolve({ family }) });
+		}
+
+		// PATCH/DELETE /api/branches/:id
+		const mBranch = url.pathname.match(/^\/api\/branches\/([^/]+)$/);
+		if (mBranch) {
+			const mod = await import("./src/app/api/branches/[id]/route.ts");
+			if (request.method === "PATCH") return mod.PATCH(request, { params: Promise.resolve({ id: mBranch[1] }) });
+			if (request.method === "DELETE") return mod.DELETE(request, { params: Promise.resolve({ id: mBranch[1] }) });
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET/POST /api/branches
+		if (url.pathname === "/api/branches") {
+			const mod = await import("./src/app/api/branches/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// POST /api/photo
+		if (url.pathname === "/api/photo") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/photo/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// PATCH/DELETE /api/users/:id
+		const mUser = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+		if (mUser) {
+			const mod = await import("./src/app/api/users/[id]/route.ts");
+			if (request.method === "PATCH") return mod.PATCH(request, { params: Promise.resolve({ id: mUser[1] }) });
+			if (request.method === "DELETE") return mod.DELETE(request, { params: Promise.resolve({ id: mUser[1] }) });
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET/POST /api/users
+		if (url.pathname === "/api/users") {
+			const mod = await import("./src/app/api/users/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/audit
+		if (url.pathname === "/api/audit") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/audit/route.ts");
+				return mod.GET(request);
 			}
 			return new Response("Method Not Allowed", { status: 405 });
 		}

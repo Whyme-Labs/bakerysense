@@ -16,12 +16,14 @@ export interface ToolContext {
   quantiles: number[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- variance: default Args must accept any tool's specific Zod-inferred type
 export interface ToolImpl<Args = any, Result = unknown> {
   schema: ToolSchema;
   args: z.ZodType<Args>;
   handler: (args: Args, ctx: ToolContext) => Promise<Result>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- variance: registry holds heterogeneous ToolImpl<...> entries
 export const TOOL_REGISTRY: Record<string, ToolImpl<any, unknown>> = {
   list_skus: listSkus,
   forecast,
