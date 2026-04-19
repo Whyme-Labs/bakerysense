@@ -154,6 +154,7 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 - P2 Forecasting Worker — pure-JS `gbm-walker` (700/700 parity with Python within 1e-4), R2 feature store + tree bundle, tool registry with 5 tools, Queue-driven agent loop, context compactor, SSE streaming ✓
 - P3 UI — landing, tenant shell, dashboard (BakePlanTable + ConfidenceBar), SKU detail (QuantileChart + DriverBars), chat with SSE rendering, display-case photo → Gemma vision → markdowns, admin (connectors/branches/users/audit), account settings ✓
 - P4 Feedback loop — `daily_actuals` + `forecast_snapshots` D1 tables, close-out-today dialog + inline "report actual" + CSV import, rolling WAPE badge on dashboard + drift banner on SKU detail, model-pointer KV layer for hot version-swap, retrain queue + manual trigger + training-inputs CSV export to R2, HMAC-signed `/api/internal/publish-model` with >10% rolling-MAE regression guard, `scripts/retrain_tenant.py` local retrain → publish flow ✓
+- P5 E2E — idempotent `seedDemo(env)` helper + HMAC-signed `POST /api/admin/seed-demo` (mirrors publish-model HMAC pattern) that provisions the Favorita demo tenant with 5 branches, 2 users, 30 days × 3 families of synthetic actuals + snapshots; `scripts/seed_demo_bundle.py` CLI for exporting the tree + features JSON bundle ready for R2 upload (in progress)
 - TimesFM cold-start sidecar · markdown policy calibration · live deploy of the e2e path
 
 **Week 3**
