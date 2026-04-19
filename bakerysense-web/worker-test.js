@@ -9,6 +9,7 @@ import { POST as signoutPOST } from "./src/app/api/auth/signout/route.js";
 import { GET as meGET } from "./src/app/api/auth/me/route.js";
 import { GET as jwksGET } from "./src/app/api/.well-known/jwks.json/route.js";
 import { POST as rotateJwksPOST } from "./src/app/api/internal/rotate-jwks/route.js";
+import { POST as publishModelPOST } from "./src/app/api/internal/publish-model/route.js";
 import { POST as passwordChangePOST } from "./src/app/api/auth/password-change/route.js";
 
 const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
@@ -57,6 +58,11 @@ export default {
 
 		if (url.pathname === "/api/internal/rotate-jwks") {
 			if (request.method === "POST") return rotateJwksPOST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		if (url.pathname === "/api/internal/publish-model") {
+			if (request.method === "POST") return publishModelPOST(request);
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
