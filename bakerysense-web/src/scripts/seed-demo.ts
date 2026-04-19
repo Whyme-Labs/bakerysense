@@ -114,14 +114,18 @@ async function upsertBranch(
 
 async function ensureConnector(env: CloudflareEnv, tenantId: string): Promise<string> {
 	const list = await listConnectors(env, tenantId);
+	// Prefer the OPENROUTER_API_KEY secret when set (production deploys); fall
+	// back to a placeholder so local dev still provisions a connector row.
+	const credential = (env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY
+		?? "sk-or-seed-demo-REPLACE-ME";
 	if (list.length > 0) return list[0].id;
 	const conn = await createConnector(env, tenantId, {
 		preset: "openrouter",
 		label: "OpenRouter (demo)",
 		baseUrl: "https://openrouter.ai/api/v1",
-		model: "google/gemma-4-e4b-it",
+		model: "google/gemma-4-26b-a4b-it",
 		authMethod: "api_key",
-		credential: "sk-or-seed-demo-REPLACE-ME",
+		credential,
 	});
 	await setDefaultConnector(env, tenantId, conn.id);
 	return conn.id;
@@ -208,9 +212,8 @@ async function seedForecastBundle(
 	const treesKey = `tenant:${tenantId}/trees/latest.json`;
 	const featuresKey = `tenant:${tenantId}/features/latest.json`;
 
-	const treesExists = await env.MODELS.head(treesKey);
-	const featuresExists = await env.MODELS.head(featuresKey);
-	if (treesExists && featuresExists) return null;
+	// Always overwrite — the synthetic bundle is cheap to regenerate and seedDemo
+	// is only invoked by the HMAC-signed operator path.
 
 	// Trees: per-quantile single-leaf model; leaf value = base-per-family-average * scale.
 	const meanBase = Object.values(FAMILY_BASE).reduce((a, b) => a + b, 0) / Object.keys(FAMILY_BASE).length;
@@ -231,12 +234,13 @@ async function seedForecastBundle(
 	}
 	await env.MODELS.put(treesKey, JSON.stringify({ quantiles }));
 
-	// Features: per branch × family × recent-date, use the family base as the single feature.
+	// Features: per branch × family × date across 7 past + 7 future days so both
+	// the dashboard (today) and Gemma's "tomorrow" queries find rows.
 	const perBranchFamilyDate: Record<string, Record<string, number>> = {};
 	const today = new Date();
 	const dates: string[] = [];
-	for (let d = 0; d < 7; d++) {
-		dates.push(new Date(today.getTime() - d * 86400_000).toISOString().slice(0, 10));
+	for (let d = -7; d <= 7; d++) {
+		dates.push(new Date(today.getTime() + d * 86400_000).toISOString().slice(0, 10));
 	}
 	for (const branchId of branchIds) {
 		for (const family of Object.keys(FAMILY_BASE)) {

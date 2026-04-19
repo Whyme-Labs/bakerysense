@@ -37,7 +37,7 @@ export async function GET(req: Request): Promise<Response> {
 			label: "OpenRouter (OAuth)",
 			preset: "openrouter",
 			baseUrl: "https://openrouter.ai/api/v1",
-			model: "google/gemma-4-e4b-it",
+			model: "google/gemma-4-26b-a4b-it",
 			authMethod: "oauth",
 			credential: body.access_token,
 		});

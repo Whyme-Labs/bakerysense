@@ -10,7 +10,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "bakerysense-web",
 	"account_id": "1e0170aaabc90ecf5f466128d1f0466a",
-	"main": ".open-next/worker.js",
+	"main": "worker-entry.ts",
 	"compatibility_date": "2026-04-18",
 	"compatibility_flags": [
 		"nodejs_compat",

@@ -27,6 +27,7 @@ const TRAINED_QUANTILES = [0.1, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9];
 
 export default {
   async queue(batch: MessageBatch<QueueMessage | RetrainJob>, env: CloudflareEnv): Promise<void> {
+    console.log(`queue invoked: queue=${batch.queue} messages=${batch.messages.length}`);
     if (batch.queue === "retrain-queue" || batch.queue === "retrain-queue-test") {
       for (const msg of batch.messages) {
         try {
@@ -41,10 +42,13 @@ export default {
     }
     // Existing chat path unchanged
     for (const msg of batch.messages) {
+      console.log(`chat_turn_start turnId=${(msg.body as QueueMessage).turnId} session=${(msg.body as QueueMessage).sessionId}`);
       try {
         await runTurn(env, msg.body as QueueMessage);
+        console.log(`chat_turn_done turnId=${(msg.body as QueueMessage).turnId}`);
         msg.ack();
       } catch (e) {
+        console.error(`chat_turn_failed turnId=${(msg.body as QueueMessage).turnId}:`, (e as Error).message, (e as Error).stack);
         const body = msg.body as QueueMessage;
         try {
           await updateTurnStatus(env, body.sessionId, body.turnId, {
@@ -53,7 +57,7 @@ export default {
           await appendTurnEvent(env, body.sessionId, body.turnId, {
             type: "error", message: (e as Error).message,
           });
-        } catch { /* best-effort */ }
+        } catch (inner) { console.error("status_update_failed:", (inner as Error).message); }
         msg.retry();
       }
     }
@@ -165,22 +169,43 @@ async function runTurn(env: CloudflareEnv, body: QueueMessage): Promise<void> {
 
 function prependSystemIfNeeded(session: { messages: ChatMessage[] }, ctx: ToolContext): ChatMessage[] {
   if (session.messages.some((m) => m.role === "system")) return session.messages;
-  const branches = ctx.permittedBranches ? ctx.permittedBranches.join(", ") : "all";
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
+  const branchList = ctx.permittedBranches && ctx.permittedBranches.length > 0
+    ? ctx.permittedBranches.join(", ")
+    : "(user has tenant-wide access — always pass a specific branch id)";
+  const defaultBranch = ctx.defaultBranchId
+    ? `\nThe user is currently viewing branch_id="${ctx.defaultBranchId}" — pass this exact id to tool calls unless the user asks about a different branch.`
+    : "";
   const sys: ChatMessage = {
     role: "system",
     content:
-      `<|think|>You are BakerySense, an AI copilot for a retail chain. ` +
+      `You are BakerySense, an AI copilot for a retail chain. ` +
       `Call tools to ground every numeric claim. Never invent quantities. ` +
       `When a tool returns an empty result, the answer is "no action needed". ` +
-      `Dates are ISO YYYY-MM-DD. ` +
-      `Branches accessible to this user: ${branches}.`,
+      `Dates are ISO YYYY-MM-DD. Today is ${today}; tomorrow is ${tomorrow}. ` +
+      `Branch ids always start with "brn_" — never pass literals like "all" or "current".` +
+      `\nBranches: ${branchList}.` +
+      defaultBranch,
   };
   return [sys, ...session.messages];
 }
 
 function stripThoughts(s: string): string {
-  // Strip Gemma's channel/thought blocks from stored history (§6.0 rule 4).
-  return s.replace(/<\|channel\|thought[^>]*>[\s\S]*?<\|\/thought\|>/g, "").trim();
+  // Gemma 4's chain-of-thought bleeds through in a few shapes:
+  //   (a) leading `thought\n...reasoning...\n<channel|>actual answer`
+  //   (b) `<|think|>...<|/think|>answer`
+  //   (c) stray `<channel|>` / `<|anything|>` control tokens anywhere
+  // Heuristic: if a `<channel|>` sentinel exists, everything before it is CoT;
+  // keep everything after. Then nuke all remaining pseudo-tokens.
+  let out = s;
+  const channelIdx = out.lastIndexOf("<channel|>");
+  if (channelIdx >= 0) out = out.slice(channelIdx + "<channel|>".length);
+  out = out
+    .replace(/<\|think\|>[\s\S]*?<\|\/think\|>/g, "")
+    .replace(/<\|?[a-z_/]+\|?>/gi, "")
+    .replace(/^(thought|thinking)[\s\S]*?\n(?=\S)/i, "");
+  return out.trim();
 }
 
 function sanitizeIn(args: unknown): unknown {
