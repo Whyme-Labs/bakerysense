@@ -266,6 +266,15 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// GET /api/admin/retrain/history — literal match BEFORE /api/admin/retrain
+		if (url.pathname === "/api/admin/retrain/history") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/admin/retrain/history/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		// POST /api/admin/retrain
 		if (url.pathname === "/api/admin/retrain") {
 			if (request.method === "POST") {
