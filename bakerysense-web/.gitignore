@@ -50,3 +50,9 @@ next-env.d.ts
 
 
 !.dev.vars.example
+
+# Playwright
+/playwright-report/
+/test-results/
+/playwright/.cache/
+/e2e/.auth/
