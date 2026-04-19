@@ -126,6 +126,23 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// PATCH/DELETE /api/branches/:id
+		const mBranch = url.pathname.match(/^\/api\/branches\/([^/]+)$/);
+		if (mBranch) {
+			const mod = await import("./src/app/api/branches/[id]/route.ts");
+			if (request.method === "PATCH") return mod.PATCH(request, { params: Promise.resolve({ id: mBranch[1] }) });
+			if (request.method === "DELETE") return mod.DELETE(request, { params: Promise.resolve({ id: mBranch[1] }) });
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET/POST /api/branches
+		if (url.pathname === "/api/branches") {
+			const mod = await import("./src/app/api/branches/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };
