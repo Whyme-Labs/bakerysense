@@ -61,6 +61,13 @@ export default {
 			return mod.POST(request, { params: Promise.resolve({ id: mDefault[1] }) });
 		}
 
+		// POST /api/connector/:id/test
+		const mTest = url.pathname.match(/^\/api\/connector\/([^/]+)\/test$/);
+		if (mTest && request.method === "POST") {
+			const mod = await import("./src/app/api/connector/[id]/test/route.ts");
+			return mod.POST(request, { params: Promise.resolve({ id: mTest[1] }) });
+		}
+
 		// DELETE /api/connector/:id
 		const mDel = url.pathname.match(/^\/api\/connector\/([^/]+)$/);
 		if (mDel && request.method === "DELETE") {

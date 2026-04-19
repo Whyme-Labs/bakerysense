@@ -55,6 +55,10 @@ async function readIndex(env: CloudflareEnv, tid: string): Promise<ConnectorInde
 	return raw ? (JSON.parse(raw) as ConnectorIndex) : { connectorIds: [], defaultId: null };
 }
 
+export async function readConnectorIndex(env: CloudflareEnv, tid: string): Promise<ConnectorIndex> {
+	return readIndex(env, tid);
+}
+
 async function writeIndex(env: CloudflareEnv, tid: string, idx: ConnectorIndex): Promise<void> {
 	await env.KV.put(`connector:tenant:${tid}:index`, JSON.stringify(idx));
 }

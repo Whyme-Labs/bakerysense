@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { resolveSession } from "@/lib/auth/session";
 import { requireRole } from "@/lib/rbac";
-import { createConnector, listConnectors } from "@/lib/connector";
+import { createConnector, listConnectors, readConnectorIndex } from "@/lib/connector";
 import { Unauthorized, Forbidden, errorResponse, BadRequest } from "@/lib/errors";
 import { verifyCsrf } from "@/lib/auth/csrf";
 import { writeAudit } from "@/lib/audit";
@@ -24,8 +24,14 @@ export async function GET(req: Request): Promise<Response> {
 		const session = await resolveSession(env, req);
 		if (!session) throw new Unauthorized();
 		requireRole(session.claims, ["tenant_admin"]);
-		const connectors = await listConnectors(env, session.claims.tid);
-		return Response.json({ connectors: connectors.map(({ encryptedCredential: _enc, ...rest }) => rest) });
+		const [connectors, idx] = await Promise.all([
+			listConnectors(env, session.claims.tid),
+			readConnectorIndex(env, session.claims.tid),
+		]);
+		return Response.json({
+			connectors: connectors.map(({ encryptedCredential: _enc, ...rest }) => rest),
+			defaultId: idx.defaultId,
+		});
 	} catch (e) { return errorResponse(e); }
 }
 
