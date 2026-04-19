@@ -28,18 +28,9 @@ function newUserId(): string {
 }
 
 function generateTempPassword(): string {
-	// 20-character random password, base64url encoded
-	const bytes = crypto.getRandomValues(new Uint8Array(15));
-	// convert to base64url — 15 bytes = 20 chars base64
+	// 20-character random password from a URL-safe alphabet
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-	let result = "";
-	const b64 = btoa(String.fromCharCode(...bytes));
-	for (let i = 0; i < 20; i++) {
-		const charCode = b64.charCodeAt(i % b64.length);
-		result += chars[charCode % chars.length];
-	}
-	// Use crypto.getRandomValues directly for better randomness
-	const raw = crypto.getRandomValues(new Uint8Array(15));
+	const raw = crypto.getRandomValues(new Uint8Array(20));
 	let out = "";
 	for (const byte of raw) {
 		out += chars[byte % chars.length];
