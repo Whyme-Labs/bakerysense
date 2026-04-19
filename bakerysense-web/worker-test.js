@@ -260,6 +260,15 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// POST /api/admin/retrain
+		if (url.pathname === "/api/admin/retrain") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/admin/retrain/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };

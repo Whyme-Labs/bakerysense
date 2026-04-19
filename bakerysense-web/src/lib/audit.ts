@@ -11,7 +11,8 @@ export type AuditAction =
 	| "branch.created" | "branch.updated" | "branch.deleted"
 	| "user.invited" | "member.role_changed" | "member.removed"
 	| "user.password_changed"
-	| "actuals.recorded" | "actuals.updated" | "actuals.deleted" | "actuals.bulk_imported";
+	| "actuals.recorded" | "actuals.updated" | "actuals.deleted" | "actuals.bulk_imported"
+	| "retrain.enqueued" | "retrain.published" | "retrain.aborted" | "drift.detected";
 
 export async function writeAudit(
 	env: CloudflareEnv,

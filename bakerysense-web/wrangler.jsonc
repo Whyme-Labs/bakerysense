@@ -66,7 +66,8 @@
 	},
 	"queues": {
 		"producers": [
-			{ "binding": "CHAT_QUEUE", "queue": "chat-queue" }
+			{ "binding": "CHAT_QUEUE",    "queue": "chat-queue" },
+			{ "binding": "RETRAIN_QUEUE", "queue": "retrain-queue" }
 		],
 		"consumers": [
 			{
@@ -74,6 +75,12 @@
 				"max_batch_size": 1,
 				"max_retries": 3,
 				"dead_letter_queue": "chat-dlq"
+			},
+			{
+				"queue": "retrain-queue",
+				"max_batch_size": 1,
+				"max_retries": 3,
+				"dead_letter_queue": "retrain-dlq"
 			}
 		]
 	},
@@ -103,7 +110,8 @@
 			],
 			"queues": {
 				"producers": [
-					{ "binding": "CHAT_QUEUE", "queue": "chat-queue-test" }
+					{ "binding": "CHAT_QUEUE",    "queue": "chat-queue-test" },
+					{ "binding": "RETRAIN_QUEUE", "queue": "retrain-queue-test" }
 				]
 			},
 			"r2_buckets": [
