@@ -186,6 +186,87 @@ async function seedActualsAndSnapshots(
 	return count;
 }
 
+// Minimal synthetic forecast bundle — lets the dashboard + forecast tools
+// return non-empty results without requiring a trained Python model uploaded
+// to R2. Each quantile is a single-leaf tree returning a per-family base.
+// For a real demo, `scripts/seed_demo_bundle.py` produces the proper
+// LightGBM-trained bundle; this is the "just make it work" fallback.
+const FAMILY_BASE: Record<string, number> = {
+	"TRADITIONAL BAGUETTE": 140,
+	"CROISSANT": 95,
+	"PAIN AU CHOCOLAT": 80,
+};
+const QUANTILE_SCALES: Record<string, number> = {
+	"0.1": 0.82, "0.3": 0.91, "0.5": 1.0, "0.6": 1.05, "0.7": 1.1, "0.8": 1.15, "0.9": 1.22,
+};
+
+async function seedForecastBundle(
+	env: CloudflareEnv,
+	tenantId: string,
+	branchIds: string[],
+): Promise<{ treesKey: string; featuresKey: string } | null> {
+	const treesKey = `tenant:${tenantId}/trees/latest.json`;
+	const featuresKey = `tenant:${tenantId}/features/latest.json`;
+
+	const treesExists = await env.MODELS.head(treesKey);
+	const featuresExists = await env.MODELS.head(featuresKey);
+	if (treesExists && featuresExists) return null;
+
+	// Trees: per-quantile single-leaf model; leaf value = base-per-family-average * scale.
+	const meanBase = Object.values(FAMILY_BASE).reduce((a, b) => a + b, 0) / Object.keys(FAMILY_BASE).length;
+	const quantiles: Record<string, unknown> = {};
+	for (const [q, scale] of Object.entries(QUANTILE_SCALES)) {
+		quantiles[q] = {
+			feature_names: ["lag_7"],
+			num_trees: 1,
+			trees: [{
+				split_feature: [],
+				threshold: [],
+				decision_type: [],
+				left_child: [],
+				right_child: [],
+				leaf_value: [meanBase * scale],
+			}],
+		};
+	}
+	await env.MODELS.put(treesKey, JSON.stringify({ quantiles }));
+
+	// Features: per branch × family × recent-date, use the family base as the single feature.
+	const perBranchFamilyDate: Record<string, Record<string, number>> = {};
+	const today = new Date();
+	const dates: string[] = [];
+	for (let d = 0; d < 7; d++) {
+		dates.push(new Date(today.getTime() - d * 86400_000).toISOString().slice(0, 10));
+	}
+	for (const branchId of branchIds) {
+		for (const family of Object.keys(FAMILY_BASE)) {
+			for (const date of dates) {
+				perBranchFamilyDate[`${branchId}|${family}|${date}`] = { lag_7: FAMILY_BASE[family] };
+			}
+		}
+	}
+	await env.MODELS.put(featuresKey, JSON.stringify({
+		last_date: dates[0],
+		per_branch_family_date: perBranchFamilyDate,
+	}));
+
+	return { treesKey, featuresKey };
+}
+
+// Clear rate-limit counters so re-seeding during Playwright runs doesn't
+// trip signin/signup throttles (keys live in KV under `rate:<type>:<key>`).
+async function clearRateLimits(env: CloudflareEnv): Promise<number> {
+	let total = 0;
+	let cursor: string | undefined;
+	do {
+		const page = await env.KV.list({ prefix: "rate:", cursor });
+		await Promise.all(page.keys.map((k) => env.KV.delete(k.name)));
+		total += page.keys.length;
+		cursor = page.list_complete ? undefined : page.cursor;
+	} while (cursor);
+	return total;
+}
+
 export async function seedDemo(env: CloudflareEnv): Promise<{
 	tenantId: string;
 	tenantSlug: string;
@@ -194,7 +275,9 @@ export async function seedDemo(env: CloudflareEnv): Promise<{
 	branchIds: string[];
 	connectorId: string;
 	seededRows: number;
+	bundleUploaded: boolean;
 }> {
+	await clearRateLimits(env);
 	const tenantId = await upsertTenant(env);
 	const adminUserId = await upsertUser(env, DEMO_ADMIN.email, DEMO_ADMIN.password);
 	const managerUserId = await upsertUser(env, DEMO_MANAGER.email, DEMO_MANAGER.password);
@@ -222,6 +305,7 @@ export async function seedDemo(env: CloudflareEnv): Promise<{
 	}
 	const connectorId = await ensureConnector(env, tenantId);
 	const seededRows = await seedActualsAndSnapshots(env, tenantId, branchIds);
+	const bundle = await seedForecastBundle(env, tenantId, branchIds);
 	return {
 		tenantId,
 		tenantSlug: DEMO_SLUG,
@@ -230,5 +314,6 @@ export async function seedDemo(env: CloudflareEnv): Promise<{
 		branchIds,
 		connectorId,
 		seededRows,
+		bundleUploaded: bundle !== null,
 	};
 }

@@ -11,9 +11,13 @@ const PUBLIC_PREFIXES = [
 ];
 
 function applySecurityHeaders(res: NextResponse): NextResponse {
+	// Next.js App Router emits inline hydration scripts (flight payload, self-initializing
+	// chunks) — blocking them with `script-src 'self'` breaks all client-side React.
+	// For hackathon MVP we allow 'unsafe-inline' + 'unsafe-eval' on scripts; production
+	// hardening path is per-request nonces via middleware + <Script nonce={...}>.
 	res.headers.set(
 		"content-security-policy",
-		"default-src 'self'; connect-src 'self' https://openrouter.ai; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'"
+		"default-src 'self'; connect-src 'self' https://openrouter.ai; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
 	);
 	res.headers.set("x-content-type-options", "nosniff");
 	res.headers.set("x-frame-options", "DENY");
@@ -26,6 +30,11 @@ export function middleware(req: NextRequest) {
 	const { pathname } = req.nextUrl;
 	if (PUBLIC_PATHS.has(pathname)) return applySecurityHeaders(NextResponse.next());
 	if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return applySecurityHeaders(NextResponse.next());
+
+	// API routes do their own auth (resolveSession in route handlers) and must return
+	// JSON 401 for unauthenticated clients — never redirect to /signin, which breaks
+	// useSession, fetch() callers, and HMAC-signed internal endpoints.
+	if (pathname.startsWith("/api/")) return applySecurityHeaders(NextResponse.next());
 
 	const hasAuthCookie = req.cookies.get("bs_at");
 	if (!hasAuthCookie) {

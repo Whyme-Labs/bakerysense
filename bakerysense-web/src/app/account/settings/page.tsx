@@ -6,6 +6,7 @@ import { PasswordChange } from "@/components/account/PasswordChange";
 import { DevOverridesPanel } from "@/components/account/DevOverridesPanel";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export default async function AccountSettingsPage() {
   const { env } = getCloudflareContext();

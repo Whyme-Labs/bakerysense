@@ -51,7 +51,7 @@ export function BakePlanTable({ rows, slug, branch, onDate, wapeByFamily }: Bake
                 )}
                 <td className="px-4 py-3 text-right text-lg font-semibold tabular-nums text-[var(--brand-700)]">{r.bake_quantity}</td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/t/${slug}/sku/${encodeURIComponent(r.sku)}?on_date=${onDate}`}
+                  <Link href={`/t/${slug}/sku/${encodeURIComponent(r.sku)}?on_date=${onDate}&branch=${encodeURIComponent(branch)}`}
                         className="text-xs text-[var(--accent-info)] hover:underline">drivers →</Link>
                 </td>
                 <td className="px-4 py-3 text-right">

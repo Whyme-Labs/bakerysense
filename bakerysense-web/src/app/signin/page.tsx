@@ -1,10 +1,9 @@
 "use client";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function SigninPage() {
 	const router = useRouter();
-	const params = useSearchParams();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [tenantSlug, setTenantSlug] = useState("");
@@ -25,7 +24,12 @@ export default function SigninPage() {
 				const body = (await res.json().catch(() => ({}))) as { error?: string };
 				throw new Error(body.error ?? `HTTP ${res.status}`);
 			}
-			router.push(params.get("next") ?? `/t/${tenantSlug}/dashboard`);
+			// Read ?next= lazily so we don't need useSearchParams (which forces
+			// a Suspense boundary in Next 15+ static rendering).
+			const next = typeof window !== "undefined"
+				? new URLSearchParams(window.location.search).get("next")
+				: null;
+			router.push(next ?? `/t/${tenantSlug}/dashboard`);
 		} catch (e) {
 			setError((e as Error).message);
 		} finally {

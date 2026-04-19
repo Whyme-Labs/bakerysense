@@ -37,11 +37,21 @@ export const test = base.extend<object, { seeded: void }>({
 
 export async function signIn(page: Page, email: string, password: string, slug: string): Promise<void> {
   await page.goto("/signin");
+  // Wait for hydration — without this, a fast click can trigger the browser's
+  // native form submit before React attaches the onSubmit handler, which
+  // bypasses router.push and strands the user on /signin.
+  await page.waitForLoadState("networkidle");
+  await page.fill('[data-testid="signin-slug"]', slug);
   await page.fill('[data-testid="signin-email"]', email);
   await page.fill('[data-testid="signin-password"]', password);
-  await page.fill('[data-testid="signin-slug"]', slug);
-  await page.click('[data-testid="signin-submit"]');
-  await expect(page).toHaveURL(new RegExp(`/t/${slug}/`));
+  const [signinRes] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith("/api/auth/signin") && r.request().method() === "POST"),
+    page.click('[data-testid="signin-submit"]'),
+  ]);
+  if (!signinRes.ok()) {
+    throw new Error(`signin failed ${signinRes.status()}: ${await signinRes.text()}`);
+  }
+  await page.waitForURL(new RegExp(`/t/${slug}/`), { timeout: 15_000 });
 }
 
 export const DEMO = {
