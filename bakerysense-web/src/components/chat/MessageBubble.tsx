@@ -6,7 +6,7 @@ interface Props {
 export function MessageBubble({ role, content }: Props) {
   const isUser = role === "user";
   return (
-    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
+    <div data-testid={`message-bubble-${role}`} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
       <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted,#6b7280)]">
         {isUser ? "You" : "Assistant"}
       </span>

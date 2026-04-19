@@ -35,7 +35,7 @@ export function CountsTable({ counts, onChange }: CountsTableProps) {
   const rows = Object.entries(counts);
 
   return (
-    <div>
+    <div data-testid="counts-table">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--border)] text-left text-xs font-medium uppercase tracking-wider text-[var(--ink-subtle)]">

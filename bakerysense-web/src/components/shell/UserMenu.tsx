@@ -17,7 +17,7 @@ export function UserMenu() {
       <Link href="/account/settings" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
         Settings
       </Link>
-      <button onClick={signOut} className="rounded border border-[var(--border-strong)] bg-white px-2.5 py-1 text-xs hover:bg-[var(--surface-muted)]">
+      <button data-testid="user-menu-signout" onClick={signOut} className="rounded border border-[var(--border-strong)] bg-white px-2.5 py-1 text-xs hover:bg-[var(--surface-muted)]">
         Sign out
       </button>
     </div>
