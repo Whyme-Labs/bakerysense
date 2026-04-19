@@ -193,6 +193,32 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// PATCH/DELETE /api/users/:id
+		const mUser = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+		if (mUser) {
+			const mod = await import("./src/app/api/users/[id]/route.ts");
+			if (request.method === "PATCH") return mod.PATCH(request, { params: Promise.resolve({ id: mUser[1] }) });
+			if (request.method === "DELETE") return mod.DELETE(request, { params: Promise.resolve({ id: mUser[1] }) });
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET/POST /api/users
+		if (url.pathname === "/api/users") {
+			const mod = await import("./src/app/api/users/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/audit
+		if (url.pathname === "/api/audit") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/audit/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };
