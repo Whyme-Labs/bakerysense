@@ -196,6 +196,7 @@ Components (`src/components/`):
 ```
 shell/       Nav, BranchSelector, UserMenu, StatusBadge, TenantHeader, ErrorBoundary
 forecast/    ConfidenceBar, BakePlanTable, QuantileChart, DriverBars, TrendLine (hand-rolled SVG)
+feedback/    CloseOutDayDialog + CloseOutDayTrigger, ReportWrongForecastButton
 chat/        ChatThread, MessageBubble, ToolTrace, PromptInput, TurnStatus
 display-case/PhotoUpload, CountsTable, MarkdownList
 admin/       ConnectorList/Form/Test, MemberTable, InviteDialog, BranchTable/Editor, AuditLogTable
@@ -212,9 +213,122 @@ GET  /api/forecast/batch       → list_skus then forecast per SKU
 POST /api/photo                → direct multimodal fetch to connector + suggest_markdowns
 ```
 
+REST endpoints added by P4 for merchant actuals feedback:
+
+```
+POST /api/actuals              → upsert actual (branchId, family, date, actualBake?, actualSales?, wasteUnits?, recommendedBake?, source?)
+GET  /api/actuals?branch=      → list actuals for a branch
+```
+
+The P4 feedback loop adds two client components to the dashboard:
+- **`CloseOutDayDialog`** — fixed-position modal (portal-less) opened by a "Close out today" button in the dashboard header. Renders a table of all forecast SKUs with `actual_bake` and `actual_sales` number inputs. On save, fires `N` parallel `POST /api/actuals` calls (skipping blank rows). Managed by a co-located `CloseOutDayTrigger` client component that holds the `open` state.
+- **`ReportWrongForecastButton`** — inline ghost button in each `BakePlanTable` row that expands an absolute-positioned popover with a single `actualSales` input. Closes on outside click or after successful submit; shows a "Saved" indicator for 2 seconds.
+
 Visual identity: Geist Sans + Geist Mono, oklch design tokens in `src/app/tokens.css` (honey-amber bakery default, swappable for future verticals), Tailwind 4 utilities over token CSS variables. No chart library — all charts are hand-rolled SVG.
 
-Test matrix (Cloudflare Miniflare workers pool via `@cloudflare/vitest-pool-workers`, plus happy-dom for React component tests): 89 workers tests (auth/refresh/JWKS rotation/RBAC matrix/multi-tenant isolation/connector CRUD/chat turn/dashboard-flow/chat-ui-smoke/admin-connectors-flow) + 1 component test (ConfidenceBar render), all passing.
+Test matrix (Cloudflare Miniflare workers pool via `@cloudflare/vitest-pool-workers`, plus happy-dom for pure unit tests): 106 workers tests (auth/refresh/JWKS rotation/RBAC matrix/multi-tenant isolation/connector CRUD/chat turn/dashboard-flow/chat-ui-smoke/admin-connectors-flow/actuals-flow/metrics-rolling-wape/retrain-pipeline) + 7 unit tests (ConfidenceBar SVG render + pure-math metrics: wape + driftDetected), all passing.
+
+## Feedback loop (P4)
+
+A closed loop between the merchant's own actuals and the model that serves them forecasts. Two new D1 tables, four new KV keys, one new R2 prefix, one new queue, and one signed publish endpoint.
+
+### New D1 tables (`drizzle/0001_feedback_loop.sql`)
+
+```
+daily_actuals         tenant × branch × family × date grain — what actually happened
+                      (recommended_bake, actual_bake, actual_sales, waste_units, source)
+forecast_snapshots    tenant × branch × family × date × model_version — what we forecast
+                      (bake_quantity, quantiles_json, served_at)
+```
+
+`daily_actuals` carries a unique index on `(tenant_id, branch_id, family, date)` so repeated captures for the same SKU-day upsert in place. `forecast_snapshots` is idempotent on `(tenant, branch, family, date, model_version)` so calling `/api/forecast/...` multiple times for the same day doesn't pile up snapshots.
+
+### New KV keys (`src/lib/model-pointer.ts`)
+
+```
+model:active:<tid>        → { version, treesR2Key, featuresR2Key, trainedAt, rollingMae }
+model:versions:<tid>      → [{ version, trainedAt, metrics, treesR2Key, featuresR2Key }, ...] (last 20)
+retrain:last:<tid>        → { status: idle|queued|running|awaiting_publish|published|aborted, startedAt?, finishedAt?, outcome?, reason? }
+```
+
+`src/lib/features.ts` resolves tree + feature R2 keys through the active pointer; its in-memory cache is keyed by `${tenantId}:${version}` and a new version bump evicts the stale entry automatically. Fresh tenants (no pointer written yet) fall back to the seed paths `tenant:<tid>/trees/latest.json` and `tenant:<tid>/features/latest.json`, so day-1 tenants work unchanged.
+
+### New R2 layout
+
+```
+bakerysense-models/
+  tenant:<tid>/training-inputs/<yyyymmddHHMMSS>.csv   queue consumer output
+  tenant:<tid>/v<n>/trees/latest.json                 published by Python retrain script
+  tenant:<tid>/v<n>/features/latest.json              published by Python retrain script
+```
+
+### REST endpoints
+
+```
+POST /api/actuals                           record one SKU-day (merchant close-out)
+GET  /api/actuals?branch=                   list recent actuals for a branch
+PATCH /api/actuals/:id                      update/correct a row
+DELETE /api/actuals/:id                     remove a row
+POST /api/actuals/bulk                      CSV import (tenant_admin only)
+GET  /api/actuals/metrics?branch=&window=   rolling WAPE per family
+
+POST /api/admin/retrain                     enqueue a retrain job (tenant_admin only)
+GET  /api/admin/retrain/history             active pointer + last 20 versions + retrain state
+POST /api/internal/publish-model            HMAC-signed — called by the retrain script to
+                                            update the active model pointer + append history
+```
+
+Every mutation writes an audit event: `actuals.recorded`, `actuals.updated`, `actuals.deleted`, `actuals.bulk_imported`, `retrain.enqueued`, `retrain.published`, `retrain.aborted`, `drift.detected`.
+
+### Pipeline
+
+```
+Merchant clicks "Trigger retrain now" in /t/[slug]/admin/retraining
+  → POST /api/admin/retrain   (tenant_admin + CSRF)
+  → env.RETRAIN_QUEUE.send({ type: "retrain", tenantId, triggeredBy: "manual", triggeredAt })
+  → retrain:last:<tid> = { status: "queued", startedAt }
+
+Queue consumer (src/lib/queue-consumer.ts routes by batch.queue)
+  → handleRetrainMessage(env, job)
+  → buildTrainingCsv pulls 180 days of actuals + snapshots
+  → uploadTrainingInputs writes to R2 tenant:<tid>/training-inputs/<ts>.csv
+  → retrain:last:<tid> = { status: "awaiting_publish", reason: <r2_key> }
+
+Operator (for MVP — Cloudflare Container is future work)
+  → wrangler r2 object get bakerysense-models/<r2_key> > ./training-inputs.csv
+  → python scripts/retrain_tenant.py --tenant <tid> --training-csv ... \
+                --new-version <n> --publish --ops-secret $OPS_ROTATE_SECRET
+
+scripts/retrain_tenant.py
+  → trains LightGBM × 7 quantiles with identical DEFAULT_PARAMS as the seed model
+  → exports trees + features JSON
+  → POSTs canonical JSON + HMAC sha256 signature to /api/internal/publish-model
+
+/api/internal/publish-model (HMAC-signed with OPS_ROTATE_SECRET)
+  → verify sig via constant-time compare
+  → Zod-validate body; regression guard (new rollingMae > 1.1 * baseline → 409 abort)
+  → otherwise: model:active:<tid> ← new pointer, model:versions:<tid> ← append
+  → retrain:last:<tid> = { status: "published", finishedAt }
+  → audit retrain.published
+
+Next forecast request
+  → features.ts reads model:active:<tid>, loads the new tree bundle from R2
+  → cache automatically invalidated by version-keyed cache; no redeploy needed
+```
+
+### Cron wiring (deferred)
+
+`bakerysense-web/src/scripts/cron/retrain-cron.ts` is a scheduled handler that enumerates tenants with ≥30 `daily_actuals` rows and enqueues a retrain per tenant on a weekly cadence. It is NOT wired into `wrangler.jsonc` — same pattern as the P1 JWKS rotation cron. Reason: OpenNext's default Worker entry doesn't expose `scheduled()` hooks. To enable, deploy as a separate Worker script with its own entry. Manual retrain via `/api/admin/retrain` covers the hackathon demo.
+
+### Container wiring (deferred)
+
+Spec §14.3 envisions the Python retrain running inside a Cloudflare Container wired to the consume side of `retrain-queue`. The MVP ships the Python script (`scripts/retrain_tenant.py`) run locally by the operator — the pipeline shape (queue → training-inputs CSV in R2 → signed publish callback) is identical; only the execution site differs. Container binding is future work.
+
+### Quality surfacing (UI)
+
+`/t/[slug]/dashboard` parallel-fetches `/api/actuals/metrics?window=7` alongside `/api/forecast/batch` and renders a `<QualityBadge>` beside each SKU row (green/amber/red by WAPE, "no signal" if <3 samples).
+
+`/t/[slug]/sku/[family]` renders a `<DriftBanner>` above the charts when `window=14` rolling WAPE exceeds `1.5 × baseline_wape`. Baseline is a hardcoded 0.25 fallback for MVP (R2 `baseline-metrics.json` per-tenant is future work); the banner links to `/t/[slug]/admin/retraining`.
 
 ## Status by module
 

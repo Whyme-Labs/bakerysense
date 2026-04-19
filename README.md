@@ -106,7 +106,7 @@ python -m pytest tests/ -v
 
 49 Python tests covering features (leak-freeness), forecaster (train/predict/save/load/SHAP), newsvendor math, eval metrics, agent tool dispatch, vision JSON parsing, session tool-calling loop, and JS↔Python gbm-walker parity (700 cases, 7 quantiles, 100 sampled rows, all within 1e-4 absolute error).
 
-On the web side (bakerysense-web/, Cloudflare Workers + Next.js 16), 90 TypeScript tests: 89 integration tests in the Miniflare workers pool (auth, refresh, JWKS rotation, RBAC matrix, multi-tenant isolation, connector CRUD, chat turn POST, dashboard-flow, chat-ui-smoke, admin-connectors-flow) + 1 React component test (ConfidenceBar render) in happy-dom.
+On the web side (bakerysense-web/, Cloudflare Workers + Next.js 16), 113 TypeScript tests: 106 integration tests in the Miniflare workers pool (auth, refresh, JWKS rotation, RBAC matrix, multi-tenant isolation, connector CRUD, chat turn POST, dashboard-flow, chat-ui-smoke, admin-connectors-flow, actuals-flow, metrics-rolling-wape, retrain-pipeline) + 7 unit tests (ConfidenceBar render, pure-math metrics wape/drift) in happy-dom.
 
 ## Reproducibility
 
@@ -124,7 +124,7 @@ git clone <repo> && cd gemma-4-hack
 uv venv && source .venv/bin/activate
 uv pip install -e '.[dev]'
 python -m pytest tests/ -q              # Python tests
-cd bakerysense-web && npm run verify    # typecheck + eslint + 89 workers tests + 1 component test
+cd bakerysense-web && npm run verify    # typecheck + eslint + 106 workers tests + 7 unit tests
 python scripts/train_baseline.py        # MASE < 1, saves models/gbm/
 python scripts/demo_agent.py --tools-only
 ```
@@ -153,6 +153,7 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 - P1 Foundation — D1 schema, Argon2id, JWT ES256 + JWKS rotation, refresh-token tombstones, CSRF double-submit, RBAC, tenant-scoped connectors (8 presets, OpenRouter OAuth) ✓
 - P2 Forecasting Worker — pure-JS `gbm-walker` (700/700 parity with Python within 1e-4), R2 feature store + tree bundle, tool registry with 5 tools, Queue-driven agent loop, context compactor, SSE streaming ✓
 - P3 UI — landing, tenant shell, dashboard (BakePlanTable + ConfidenceBar), SKU detail (QuantileChart + DriverBars), chat with SSE rendering, display-case photo → Gemma vision → markdowns, admin (connectors/branches/users/audit), account settings ✓
+- P4 Feedback loop — `daily_actuals` + `forecast_snapshots` D1 tables, close-out-today dialog + inline "report actual" + CSV import, rolling WAPE badge on dashboard + drift banner on SKU detail, model-pointer KV layer for hot version-swap, retrain queue + manual trigger + training-inputs CSV export to R2, HMAC-signed `/api/internal/publish-model` with >10% rolling-MAE regression guard, `scripts/retrain_tenant.py` local retrain → publish flow ✓
 - TimesFM cold-start sidecar · markdown policy calibration · live deploy of the e2e path
 
 **Week 3**

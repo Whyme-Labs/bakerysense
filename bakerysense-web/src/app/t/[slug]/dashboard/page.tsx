@@ -1,19 +1,35 @@
 import { headers } from "next/headers";
 import { TenantHeader } from "@/components/shell/TenantHeader";
 import { BakePlanTable } from "@/components/forecast/BakePlanTable";
+import { CloseOutDayTrigger } from "@/components/feedback/CloseOutDayDialog";
 
 interface SearchParams { branch?: string; on_date?: string }
 
-async function loadForecasts(slug: string, branch: string, onDate: string, cookie: string) {
+async function getBaseUrl(): Promise<string> {
   const h = await headers();
   const host = h.get("host");
   const protocol = h.get("x-forwarded-proto") ?? "https";
-  const res = await fetch(`${protocol}://${host}/api/forecast/batch?branch=${encodeURIComponent(branch)}&on_date=${onDate}`, {
+  return `${protocol}://${host}`;
+}
+
+async function loadForecasts(slug: string, branch: string, onDate: string, cookie: string) {
+  const base = await getBaseUrl();
+  const res = await fetch(`${base}/api/forecast/batch?branch=${encodeURIComponent(branch)}&on_date=${onDate}`, {
     headers: { cookie },
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`forecast batch ${res.status}`);
   return res.json();
+}
+
+async function fetchJson<T>(path: string, cookie: string): Promise<T> {
+  const base = await getBaseUrl();
+  const res = await fetch(`${base}${path}`, {
+    headers: { cookie },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`fetch ${path} failed: ${res.status}`);
+  return res.json() as Promise<T>;
 }
 
 export default async function DashboardPage({
@@ -36,9 +52,17 @@ export default async function DashboardPage({
     );
   }
 
-  const data = await loadForecasts(slug, branch, onDate, cookie) as {
-    forecasts: Array<{ sku: string; bake_quantity: number; quantiles: Record<string, number> }>;
-  };
+  const [data, metrics] = await Promise.all([
+    loadForecasts(slug, branch, onDate, cookie) as Promise<{
+      forecasts: Array<{ sku: string; bake_quantity: number; quantiles: Record<string, number> }>;
+    }>,
+    fetchJson<{ entries: Array<{ family: string; wape: number; sampleCount: number }> }>(
+      `/api/actuals/metrics?branch=${encodeURIComponent(branch)}&window=7`,
+      cookie,
+    ).catch(() => ({ entries: [] })),
+  ]);
+  const wapeByFamily = new Map(metrics.entries.map((e) => [e.family, { wape: e.wape, sampleCount: e.sampleCount }]));
+  const closeOutRows = data.forecasts.map((f) => ({ sku: f.sku, recommendedBake: f.bake_quantity }));
   return (
     <>
       <TenantHeader slug={slug} />
@@ -47,12 +71,15 @@ export default async function DashboardPage({
           <h1 className="text-2xl font-semibold">Today&rsquo;s bake plan</h1>
           <p className="mt-1 text-sm text-[var(--ink-muted)]">Branch {branch} · {onDate}</p>
         </div>
-        <a href={`/t/${slug}/chat?prefill=Summarise%20today's%20bake%20plan%20for%20branch%20${branch}`}
-           className="text-sm text-[var(--accent-info)] hover:underline">
-          Ask Gemma for a narrative →
-        </a>
+        <div className="flex items-center gap-4">
+          <CloseOutDayTrigger slug={slug} branch={branch} date={onDate} rows={closeOutRows} />
+          <a href={`/t/${slug}/chat?prefill=Summarise%20today's%20bake%20plan%20for%20branch%20${branch}`}
+             className="text-sm text-[var(--accent-info)] hover:underline">
+            Ask Gemma for a narrative →
+          </a>
+        </div>
       </div>
-      <BakePlanTable rows={data.forecasts} slug={slug} onDate={onDate} />
+      <BakePlanTable rows={data.forecasts} slug={slug} branch={branch} onDate={onDate} wapeByFamily={wapeByFamily} />
     </>
   );
 }

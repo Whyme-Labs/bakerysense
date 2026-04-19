@@ -14,6 +14,7 @@ interface CloudflareEnv extends Cloudflare.Env {
 	KV: KVNamespace;
 	// Queue bindings
 	CHAT_QUEUE: Queue;
+	RETRAIN_QUEUE: Queue;
 	// R2 bucket bindings
 	MODELS: R2Bucket;
 	// Secrets / vars
@@ -27,6 +28,7 @@ declare namespace Cloudflare {
 	interface Env {
 		KV: KVNamespace;
 		CHAT_QUEUE: Queue;
+		RETRAIN_QUEUE: Queue;
 		MODELS: R2Bucket;
 		JWKS_ENCRYPTION_KEY: string;
 		CONNECTOR_MEK: string;

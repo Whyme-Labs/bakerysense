@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { TenantHeader } from "@/components/shell/TenantHeader";
 import { QuantileChart } from "@/components/forecast/QuantileChart";
 import { DriverBars } from "@/components/forecast/DriverBars";
+import { DriftBanner } from "@/components/feedback/DriftBanner";
 
 interface PageProps {
   params: Promise<{ slug: string; family: string }>;
@@ -41,17 +42,22 @@ export default async function SkuDetailPage({ params, searchParams }: PageProps)
 
   const qs = `?on_date=${onDate}&branch=${encodeURIComponent(branch)}`;
   const familyPath = encodeURIComponent(decodedFamily);
-  const [forecastRaw, explainRaw] = await Promise.all([
+  const [forecastRaw, explainRaw, metricsRaw] = await Promise.all([
     fetchJson(`/api/forecast/${familyPath}${qs}`, cookie),
     fetchJson(`/api/explain/${familyPath}${qs}`, cookie).catch(() => null),
+    fetchJson(`/api/actuals/metrics?branch=${encodeURIComponent(branch)}&window=14&family=${familyPath}`, cookie).catch(() => null),
   ]);
 
   const forecast = forecastRaw as { bake_quantity: number; quantiles: Record<string, number> };
   const explain = explainRaw as { drivers?: Array<{ feature: string; contribution: number }> } | null;
+  const metrics = metricsRaw as { entries: Array<{ family: string; wape: number; sampleCount: number }> } | null;
 
   const bake = forecast.bake_quantity;
   const quantiles = forecast.quantiles;
   const drivers = explain?.drivers ?? [];
+
+  const currentWape = metrics?.entries[0]?.wape ?? 0;
+  const sampleCount = metrics?.entries[0]?.sampleCount ?? 0;
 
   const prefill = encodeURIComponent(`Ask Gemma why ${decodedFamily} is forecast ${bake} for ${onDate}`);
 
@@ -68,6 +74,7 @@ export default async function SkuDetailPage({ params, searchParams }: PageProps)
           Ask Gemma why →
         </a>
       </div>
+      <DriftBanner currentWape={currentWape} baselineWape={0.25} sampleCount={sampleCount} slug={slug} />
       <section className="mb-8 rounded-lg border border-[var(--border)] bg-white p-6 shadow-[var(--shadow-sm)]">
         <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-[var(--ink-subtle)]">Quantile band</h2>
         <QuantileChart quantiles={quantiles} bakeQuantity={bake} />

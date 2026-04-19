@@ -81,3 +81,46 @@ export const auditLog = sqliteTable(
 		tenantTimeIdx: index("audit_tenant_time_idx").on(t.tenantId, t.createdAt),
 	}),
 );
+
+export const dailyActuals = sqliteTable(
+	"daily_actuals",
+	{
+		id: text("id").primaryKey(),
+		tenantId: text("tenant_id").notNull().references(() => tenants.id),
+		branchId: text("branch_id").notNull().references(() => branches.id),
+		family: text("family").notNull(),
+		date: text("date").notNull(),
+		recommendedBake: integer("recommended_bake"),
+		actualBake: integer("actual_bake"),
+		actualSales: integer("actual_sales"),
+		wasteUnits: integer("waste_units"),
+		source: text("source", { enum: ["manual", "close_out_photo", "pos_import", "csv_import"] }).notNull(),
+		capturedByUserId: text("captured_by_user_id").references(() => users.id),
+		capturedAt: integer("captured_at").notNull(),
+	},
+	(t) => ({
+		tenantBranchFamilyDateIdx: uniqueIndex("daily_actuals_unique_idx").on(
+			t.tenantId, t.branchId, t.family, t.date,
+		),
+		tenantBranchDateIdx: index("daily_actuals_lookup_idx").on(t.tenantId, t.branchId, t.date),
+	}),
+);
+
+export const forecastSnapshots = sqliteTable(
+	"forecast_snapshots",
+	{
+		id: text("id").primaryKey(),
+		tenantId: text("tenant_id").notNull().references(() => tenants.id),
+		branchId: text("branch_id").notNull().references(() => branches.id),
+		family: text("family").notNull(),
+		date: text("date").notNull(),
+		modelVersion: integer("model_version").notNull().default(0),
+		bakeQuantity: integer("bake_quantity").notNull(),
+		quantilesJson: text("quantiles_json").notNull(),
+		servedAt: integer("served_at").notNull(),
+	},
+	(t) => ({
+		uniq: uniqueIndex("forecast_snap_unique_idx").on(t.tenantId, t.branchId, t.family, t.date, t.modelVersion),
+		lookup: index("forecast_snap_lookup_idx").on(t.tenantId, t.branchId, t.date),
+	}),
+);

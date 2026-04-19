@@ -9,6 +9,7 @@ import { POST as signoutPOST } from "./src/app/api/auth/signout/route.js";
 import { GET as meGET } from "./src/app/api/auth/me/route.js";
 import { GET as jwksGET } from "./src/app/api/.well-known/jwks.json/route.js";
 import { POST as rotateJwksPOST } from "./src/app/api/internal/rotate-jwks/route.js";
+import { POST as publishModelPOST } from "./src/app/api/internal/publish-model/route.js";
 import { POST as passwordChangePOST } from "./src/app/api/auth/password-change/route.js";
 
 const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
@@ -57,6 +58,11 @@ export default {
 
 		if (url.pathname === "/api/internal/rotate-jwks") {
 			if (request.method === "POST") return rotateJwksPOST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		if (url.pathname === "/api/internal/publish-model") {
+			if (request.method === "POST") return publishModelPOST(request);
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
@@ -221,6 +227,59 @@ export default {
 			if (request.method === "GET") {
 				const mod = await import("./src/app/api/audit/route.ts");
 				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/actuals/metrics — literal match before :id regex
+		if (url.pathname === "/api/actuals/metrics") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/actuals/metrics/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// POST /api/actuals/bulk — literal match before :id regex
+		if (url.pathname === "/api/actuals/bulk") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/actuals/bulk/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// PATCH/DELETE /api/actuals/:id
+		const mActual = url.pathname.match(/^\/api\/actuals\/([^/]+)$/);
+		if (mActual) {
+			const mod = await import("./src/app/api/actuals/[id]/route.ts");
+			if (request.method === "PATCH") return mod.PATCH(request, { params: Promise.resolve({ id: mActual[1] }) });
+			if (request.method === "DELETE") return mod.DELETE(request, { params: Promise.resolve({ id: mActual[1] }) });
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET/POST /api/actuals
+		if (url.pathname === "/api/actuals") {
+			const mod = await import("./src/app/api/actuals/route.ts");
+			if (request.method === "GET") return mod.GET(request);
+			if (request.method === "POST") return mod.POST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/admin/retrain/history — literal match BEFORE /api/admin/retrain
+		if (url.pathname === "/api/admin/retrain/history") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/admin/retrain/history/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// POST /api/admin/retrain
+		if (url.pathname === "/api/admin/retrain") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/admin/retrain/route.ts");
+				return mod.POST(request);
 			}
 			return new Response("Method Not Allowed", { status: 405 });
 		}

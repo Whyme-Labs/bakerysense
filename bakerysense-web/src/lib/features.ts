@@ -1,3 +1,5 @@
+import { readActive } from "./model-pointer";
+
 export interface FeatureStore {
   last_date: string;
   per_branch_family_date: Record<string, Record<string, number>>;
@@ -5,18 +7,27 @@ export interface FeatureStore {
 
 const cache = new Map<string, Promise<FeatureStore>>();
 
+function setAndPurgeOthers<T>(map: Map<string, T>, key: string, value: T, tenantPrefix: string): void {
+  for (const k of map.keys()) {
+    if (k.startsWith(tenantPrefix + ":") && k !== key) map.delete(k);
+  }
+  map.set(key, value);
+}
+
 export async function loadFeatures(env: CloudflareEnv, tenantId: string): Promise<FeatureStore> {
-  const hit = cache.get(tenantId);
+  const active = await readActive(env, tenantId);
+  const cacheKey = `${tenantId}:${active?.version ?? 0}`;
+  const hit = cache.get(cacheKey);
   if (hit) return hit;
-  const key = `tenant:${tenantId}/features/latest.json`;
+  const featuresKey = active?.featuresR2Key ?? `tenant:${tenantId}/features/latest.json`;
   const p = (async () => {
-    const obj = await env.MODELS.get(key);
-    if (!obj) throw new Error(`features not found: ${key}`);
+    const obj = await env.MODELS.get(featuresKey);
+    if (!obj) throw new Error(`features not found: ${featuresKey}`);
     const text = await obj.text();
     return JSON.parse(text) as FeatureStore;
   })();
-  cache.set(tenantId, p);
-  try { return await p; } catch (e) { cache.delete(tenantId); throw e; }
+  setAndPurgeOthers(cache, cacheKey, p, tenantId);
+  try { return await p; } catch (e) { cache.delete(cacheKey); throw e; }
 }
 
 export function getFeatureRow(
@@ -40,18 +51,20 @@ export interface TenantModels {
 const modelCache = new Map<string, Promise<TenantModels>>();
 
 export async function loadTenantModels(env: CloudflareEnv, tenantId: string): Promise<TenantModels> {
-  const hit = modelCache.get(tenantId);
+  const active = await readActive(env, tenantId);
+  const cacheKey = `${tenantId}:${active?.version ?? 0}`;
+  const hit = modelCache.get(cacheKey);
   if (hit) return hit;
-  const key = `tenant:${tenantId}/trees/latest.json`;
+  const treesKey = active?.treesR2Key ?? `tenant:${tenantId}/trees/latest.json`;
   const p = (async () => {
-    const obj = await env.MODELS.get(key);
-    if (!obj) throw new Error(`models not found: ${key}`);
+    const obj = await env.MODELS.get(treesKey);
+    if (!obj) throw new Error(`models not found: ${treesKey}`);
     const text = await obj.text();
     const parsed = JSON.parse(text) as { quantiles?: Record<string, unknown> };
     return { quantiles: parsed.quantiles ?? (parsed as Record<string, unknown>) } as TenantModels;
   })();
-  modelCache.set(tenantId, p);
-  try { return await p; } catch (e) { modelCache.delete(tenantId); throw e; }
+  setAndPurgeOthers(modelCache, cacheKey, p, tenantId);
+  try { return await p; } catch (e) { modelCache.delete(cacheKey); throw e; }
 }
 
 export function __resetModelCacheForTest(): void { modelCache.clear(); }

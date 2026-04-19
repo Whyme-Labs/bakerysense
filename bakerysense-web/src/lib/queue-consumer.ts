@@ -1,4 +1,5 @@
 import type { MessageBatch } from "@cloudflare/workers-types";
+import { handleRetrainMessage, type RetrainJob } from "./retrain";
 import { LLMClient, type ChatMessage, type ToolSchema } from "./llm/client";
 import { TOOL_SCHEMAS, dispatch, type ToolContext } from "./tools";
 import {
@@ -25,13 +26,26 @@ const COMPACT_TRIGGER_TOKENS = 60_000;
 const TRAINED_QUANTILES = [0.1, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9];
 
 export default {
-  async queue(batch: MessageBatch<QueueMessage>, env: CloudflareEnv): Promise<void> {
+  async queue(batch: MessageBatch<QueueMessage | RetrainJob>, env: CloudflareEnv): Promise<void> {
+    if (batch.queue === "retrain-queue" || batch.queue === "retrain-queue-test") {
+      for (const msg of batch.messages) {
+        try {
+          await handleRetrainMessage(env, msg.body as RetrainJob);
+          msg.ack();
+        } catch (e) {
+          console.error("retrain_message_failed", (e as Error).message);
+          msg.retry();
+        }
+      }
+      return;
+    }
+    // Existing chat path unchanged
     for (const msg of batch.messages) {
       try {
-        await runTurn(env, msg.body);
+        await runTurn(env, msg.body as QueueMessage);
         msg.ack();
       } catch (e) {
-        const body = msg.body;
+        const body = msg.body as QueueMessage;
         try {
           await updateTurnStatus(env, body.sessionId, body.turnId, {
             status: "failed", error: (e as Error).message,
