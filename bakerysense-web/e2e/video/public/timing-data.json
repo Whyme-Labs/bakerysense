@@ -1,0 +1,171 @@
+[
+  {
+    "scenario": "landing",
+    "step": 1,
+    "step_id": "open-the-landing-page",
+    "description": "BakerySense \u2014 AI production copilot for retail chains.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 46,
+    "dwell_ms": 2500,
+    "screenshot": "landing-01-open-the-landing-page.png",
+    "video_file": "landing.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 2,
+    "step_id": "click-sign-in",
+    "description": "Sign in with your tenant slug + credentials.",
+    "timestamp_ms": 5449,
+    "wait_duration_ms": 25,
+    "dwell_ms": 0,
+    "video_file": "landing.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 3,
+    "step_id": "enter-tenant-slug-favorita",
+    "description": "Favorita \u2014 a multi-branch bakery.",
+    "timestamp_ms": 5535,
+    "wait_duration_ms": 10,
+    "dwell_ms": 0,
+    "video_file": "landing.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 4,
+    "step_id": "enter-demo-email",
+    "description": "Demo admin user.",
+    "timestamp_ms": 5557,
+    "wait_duration_ms": 9,
+    "dwell_ms": 0,
+    "video_file": "landing.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 5,
+    "step_id": "enter-password",
+    "description": "JWT + Argon2id auth.",
+    "timestamp_ms": 5573,
+    "wait_duration_ms": 5,
+    "dwell_ms": 1500,
+    "video_file": "landing.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 6,
+    "step_id": "submit-sign-in",
+    "description": "Dashboard loads \u2014 today's bake plan is ready.",
+    "timestamp_ms": 7087,
+    "wait_duration_ms": 4305,
+    "dwell_ms": 2000,
+    "screenshot": "landing-06-submit-sign-in.png",
+    "video_file": "landing.webm"
+  },
+  {
+    "scenario": "dashboard",
+    "step": 1,
+    "step_id": "open-quito-centro-dashboard",
+    "description": "Three SKUs, three quantities. Each row: q0.5, q0.7, confidence band, newsvendor bake.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 22,
+    "dwell_ms": 4000,
+    "screenshot": "dashboard-01-open-quito-centro-dashboard.png",
+    "video_file": "dashboard.webm"
+  },
+  {
+    "scenario": "dashboard",
+    "step": 2,
+    "step_id": "switch-to-guayaquil-urdesa",
+    "description": "Switch branches \u2014 same model, different sales patterns.",
+    "timestamp_ms": 5409,
+    "wait_duration_ms": 4,
+    "dwell_ms": 3000,
+    "screenshot": "dashboard-02-switch-to-guayaquil-urdesa.png",
+    "video_file": "dashboard.webm"
+  },
+  {
+    "scenario": "sku-detail",
+    "step": 1,
+    "step_id": "open-traditional-baguette-detail",
+    "description": "Quantile band shows the full demand distribution; drivers explain the forecast.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 19,
+    "dwell_ms": 5000,
+    "screenshot": "sku-detail-01-open-traditional-baguette-detail.png",
+    "video_file": "sku-detail.webm"
+  },
+  {
+    "scenario": "chat",
+    "step": 1,
+    "step_id": "open-chat",
+    "description": "Gemma 4 chat \u2014 ask in plain language.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 214,
+    "dwell_ms": 1500,
+    "video_file": "chat.webm"
+  },
+  {
+    "scenario": "chat",
+    "step": 2,
+    "step_id": "type-the-question",
+    "description": "\"How many TRADITIONAL BAGUETTE should I bake tomorrow?\"",
+    "timestamp_ms": 2028,
+    "wait_duration_ms": 2,
+    "dwell_ms": 1200,
+    "video_file": "chat.webm"
+  },
+  {
+    "scenario": "chat",
+    "step": 3,
+    "step_id": "submit-to-gemma-4",
+    "description": "Gemma 4 calls the forecaster and explain_drivers \u2014 answer grounded in real numbers.",
+    "timestamp_ms": 3235,
+    "wait_duration_ms": 54073,
+    "dwell_ms": 4000,
+    "screenshot": "chat-03-submit-to-gemma-4.png",
+    "video_file": "chat.webm"
+  },
+  {
+    "scenario": "display-case",
+    "step": 1,
+    "step_id": "open-display-case",
+    "description": "Take one photo of the shelf \u2014 Gemma vision counts units, suggests markdowns.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 77,
+    "dwell_ms": 4000,
+    "screenshot": "display-case-01-open-display-case.png",
+    "video_file": "display-case.webm"
+  },
+  {
+    "scenario": "retraining",
+    "step": 1,
+    "step_id": "open-retrain-admin",
+    "description": "Close out the day. Weekly retrain on your actuals \u2014 hot-swapped via KV pointer.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 31,
+    "dwell_ms": 4500,
+    "screenshot": "retraining-01-open-retrain-admin.png",
+    "video_file": "retraining.webm"
+  },
+  {
+    "scenario": "signout",
+    "step": 1,
+    "step_id": "back-to-dashboard",
+    "description": "Session signed out.",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 301,
+    "dwell_ms": 1200,
+    "video_file": "signout.webm"
+  },
+  {
+    "scenario": "signout",
+    "step": 2,
+    "step_id": "click-sign-out",
+    "description": "Refresh-token tombstones + JWKS rotation on the next line.",
+    "timestamp_ms": 1856,
+    "wait_duration_ms": 2796,
+    "dwell_ms": 2000,
+    "screenshot": "signout-02-click-sign-out.png",
+    "video_file": "signout.webm"
+  }
+]

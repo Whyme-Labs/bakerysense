@@ -1,0 +1,9 @@
+[
+  {
+    "timestamp": "2026-04-21T01:46:21.986Z",
+    "type": "console-error",
+    "message": "Pattern attribute value [a-z0-9-]{1,40} is not a valid regular expression: Uncaught SyntaxError: Invalid regular expression: /[a-z0-9-]{1,40}/v: Invalid character class",
+    "scenario": "(global)",
+    "step": -1
+  }
+]

@@ -1,0 +1,75 @@
+{
+  "scenarios": [
+    {
+      "id": "landing",
+      "name": "Landing & Sign In",
+      "description": "Open BakerySense, sign in as the demo tenant admin",
+      "steps": [
+        { "action": "navigate",  "target": "/",                                                  "wait_for": "h1",                                   "description": "Open the landing page",            "dwell_ms": 2500, "screenshot": true },
+        { "action": "click",     "target": "a[href='/signin']",                                  "wait_for": "[data-testid='signin-slug']",          "description": "Click sign in" },
+        { "action": "fill",      "target": "[data-testid='signin-slug']",     "value": "favorita",               "wait_for": "[data-testid='signin-slug']",          "description": "Enter tenant slug favorita" },
+        { "action": "fill",      "target": "[data-testid='signin-email']",    "value": "demo@bakerysense.app",   "wait_for": "[data-testid='signin-email']",         "description": "Enter demo email" },
+        { "action": "fill",      "target": "[data-testid='signin-password']", "value": "Demo2026DemoDemo",       "wait_for": "[data-testid='signin-password']",      "description": "Enter password", "dwell_ms": 1500 },
+        { "action": "click",     "target": "[data-testid='signin-submit']",                      "wait_for": "[data-testid='branch-selector']",      "description": "Submit sign-in",                   "dwell_ms": 2000, "screenshot": true }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "name": "Dashboard Bake Plan",
+      "description": "Pick a branch and view today's bake plan",
+      "steps": [
+        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_GPgqFKEoYimk",      "wait_for": "[data-testid^='row-sku-']",            "description": "Open Quito Centro dashboard",      "dwell_ms": 4000, "screenshot": true },
+        { "action": "select",    "target": "[data-testid='branch-selector']", "value": "3",        "wait_for": "[data-testid^='row-sku-']",            "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3000, "screenshot": true }
+      ]
+    },
+    {
+      "id": "sku-detail",
+      "name": "SKU Detail & Drivers",
+      "description": "Open the SKU detail page to see the quantile band + drivers",
+      "steps": [
+        { "action": "navigate",  "target": "/t/favorita/sku/TRADITIONAL%20BAGUETTE?branch=brn_GPgqFKEoYimk&on_date=2026-04-22", "wait_for": "h1",       "description": "Open TRADITIONAL BAGUETTE detail", "dwell_ms": 5000, "screenshot": true }
+      ]
+    },
+    {
+      "id": "chat",
+      "name": "Ask Gemma 4",
+      "description": "Ask Gemma 4 for the bake quantity and watch the tool-call trace",
+      "steps": [
+        { "action": "navigate",  "target": "/t/favorita/chat?branch=brn_GPgqFKEoYimk",            "wait_for": "[data-testid='prompt-input']",         "description": "Open chat",                        "dwell_ms": 1500 },
+        { "action": "fill",      "target": "[data-testid='prompt-input']",    "value": "How many TRADITIONAL BAGUETTE should I bake tomorrow? Explain why briefly.", "wait_for": "[data-testid='prompt-input']", "description": "Type the question", "dwell_ms": 1200 },
+        { "action": "click",     "target": "[data-testid='prompt-submit']",                      "wait_for": "[data-testid='message-bubble-assistant']", "description": "Submit to Gemma 4",            "timeout_ms": 90000, "dwell_ms": 4000, "screenshot": true }
+      ]
+    },
+    {
+      "id": "display-case",
+      "name": "Display Case",
+      "description": "Show the photo-upload surface",
+      "steps": [
+        { "action": "navigate",  "target": "/t/favorita/display-case?branch=brn_GPgqFKEoYimk",   "wait_for": "[data-testid='photo-upload-input']",   "description": "Open display case",                "dwell_ms": 4000, "screenshot": true }
+      ]
+    },
+    {
+      "id": "retraining",
+      "name": "Retrain History",
+      "description": "Show the feedback-loop retrain panel",
+      "steps": [
+        { "action": "navigate",  "target": "/t/favorita/admin/retraining",                       "wait_for": "text=Retraining",                      "description": "Open retrain admin",               "dwell_ms": 4500, "screenshot": true }
+      ]
+    },
+    {
+      "id": "signout",
+      "name": "Sign Out",
+      "description": "Sign out and return to the sign-in page",
+      "steps": [
+        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_GPgqFKEoYimk",      "wait_for": "[data-testid='branch-selector']",      "description": "Back to dashboard",               "dwell_ms": 1200 },
+        { "action": "click",     "target": "[data-testid='user-menu-signout']",                  "wait_for": "[data-testid='signin-slug']",          "description": "Click sign out",                   "dwell_ms": 2000, "screenshot": true }
+      ]
+    }
+  ],
+  "config": {
+    "base_url": "https://bakerysense-web.swmengappdev.workers.dev",
+    "viewport": { "width": 1440, "height": 900 },
+    "video": true,
+    "voiceover": false
+  }
+}

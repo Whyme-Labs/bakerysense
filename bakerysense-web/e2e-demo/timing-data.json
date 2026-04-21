@@ -1,0 +1,171 @@
+[
+  {
+    "scenario": "landing",
+    "step": 1,
+    "step_id": "open-the-landing-page",
+    "description": "Open the landing page",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 46,
+    "dwell_ms": 2500,
+    "screenshot": "landing-01-open-the-landing-page.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 2,
+    "step_id": "click-sign-in",
+    "description": "Click sign in",
+    "timestamp_ms": 5449,
+    "wait_duration_ms": 25,
+    "dwell_ms": 0,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 3,
+    "step_id": "enter-tenant-slug-favorita",
+    "description": "Enter tenant slug favorita",
+    "timestamp_ms": 5535,
+    "wait_duration_ms": 10,
+    "dwell_ms": 0,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 4,
+    "step_id": "enter-demo-email",
+    "description": "Enter demo email",
+    "timestamp_ms": 5557,
+    "wait_duration_ms": 9,
+    "dwell_ms": 0,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 5,
+    "step_id": "enter-password",
+    "description": "Enter password",
+    "timestamp_ms": 5573,
+    "wait_duration_ms": 5,
+    "dwell_ms": 1500,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "landing",
+    "step": 6,
+    "step_id": "submit-sign-in",
+    "description": "Submit sign-in",
+    "timestamp_ms": 7087,
+    "wait_duration_ms": 4305,
+    "dwell_ms": 2000,
+    "screenshot": "landing-06-submit-sign-in.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "dashboard",
+    "step": 1,
+    "step_id": "open-quito-centro-dashboard",
+    "description": "Open Quito Centro dashboard",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 22,
+    "dwell_ms": 4000,
+    "screenshot": "dashboard-01-open-quito-centro-dashboard.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "dashboard",
+    "step": 2,
+    "step_id": "switch-to-guayaquil-urdesa",
+    "description": "Switch to Guayaquil Urdesa",
+    "timestamp_ms": 5409,
+    "wait_duration_ms": 4,
+    "dwell_ms": 3000,
+    "screenshot": "dashboard-02-switch-to-guayaquil-urdesa.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "sku-detail",
+    "step": 1,
+    "step_id": "open-traditional-baguette-detail",
+    "description": "Open TRADITIONAL BAGUETTE detail",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 19,
+    "dwell_ms": 5000,
+    "screenshot": "sku-detail-01-open-traditional-baguette-detail.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "chat",
+    "step": 1,
+    "step_id": "open-chat",
+    "description": "Open chat",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 214,
+    "dwell_ms": 1500,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "chat",
+    "step": 2,
+    "step_id": "type-the-question",
+    "description": "Type the question",
+    "timestamp_ms": 2028,
+    "wait_duration_ms": 2,
+    "dwell_ms": 1200,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "chat",
+    "step": 3,
+    "step_id": "submit-to-gemma-4",
+    "description": "Submit to Gemma 4",
+    "timestamp_ms": 3235,
+    "wait_duration_ms": 54073,
+    "dwell_ms": 4000,
+    "screenshot": "chat-03-submit-to-gemma-4.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "display-case",
+    "step": 1,
+    "step_id": "open-display-case",
+    "description": "Open display case",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 77,
+    "dwell_ms": 4000,
+    "screenshot": "display-case-01-open-display-case.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "retraining",
+    "step": 1,
+    "step_id": "open-retrain-admin",
+    "description": "Open retrain admin",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 31,
+    "dwell_ms": 4500,
+    "screenshot": "retraining-01-open-retrain-admin.png",
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "signout",
+    "step": 1,
+    "step_id": "back-to-dashboard",
+    "description": "Back to dashboard",
+    "timestamp_ms": 0,
+    "wait_duration_ms": 301,
+    "dwell_ms": 1200,
+    "video_file": "session.webm"
+  },
+  {
+    "scenario": "signout",
+    "step": 2,
+    "step_id": "click-sign-out",
+    "description": "Click sign out",
+    "timestamp_ms": 1856,
+    "wait_duration_ms": 2796,
+    "dwell_ms": 2000,
+    "screenshot": "signout-02-click-sign-out.png",
+    "video_file": "session.webm"
+  }
+]
