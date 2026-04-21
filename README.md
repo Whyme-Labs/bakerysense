@@ -8,13 +8,15 @@ Offline-first production decision copilot for bakeries. Submission for the [Gemm
 
 ## Live demo
 
-- **App:** `https://bakerysense-web.<account>.workers.dev` (replace after deploy — see [`docs/deploy.md`](docs/deploy.md))
-- **Video:** `https://www.youtube.com/watch?v=<id>` (replace after recording — storyboard in [`docs/demo/storyboard.md`](docs/demo/storyboard.md))
+- **App:** <https://bakerysense-web.swmengappdev.workers.dev>
+- **Video:** _(to be recorded — storyboard in [`docs/demo/storyboard.md`](docs/demo/storyboard.md))_
 - **Writeup:** [`docs/demo/writeup.md`](docs/demo/writeup.md) (≤1500 words)
 
-Demo credentials after running `POST /api/admin/seed-demo`:
+Demo credentials:
 - `demo@bakerysense.app` / `Demo2026DemoDemo` — `tenant_admin`, all 5 branches
 - `manager@bakerysense.app` / `Manager2026Manager` — `branch_manager`, 2 branches
+
+The live app runs Gemma 4 (`google/gemma-4-26b-a4b-it` via OpenRouter) end-to-end: sign in, pick a branch on the dashboard, ask "how many TRADITIONAL BAGUETTE should I bake tomorrow?" in chat. Gemma calls `forecast` + `explain_drivers` and returns a plain-language answer grounded in the JS LightGBM walker. See [`docs/deploy.md`](docs/deploy.md) for the deployment checklist.
 
 ## What it does
 
