@@ -133,6 +133,32 @@ const OutroCard: React.FC = () => {
   );
 };
 
+/** On-cam bakery B-roll clip with an owner-line caption. */
+const BRollShot: React.FC<{ src: string; durationFrames: number; caption: string; attribution?: string }> = ({
+  src, durationFrames, caption, attribution,
+}) => {
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      <OffthreadVideo src={staticFile(src)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <Caption text={caption} startFrame={12} durationFrames={durationFrames - 12} />
+      {attribution && (
+        <div style={{
+          position: "absolute", top: 24, right: 32,
+          color: "oklch(0.85 0 0)", fontSize: 13, fontFamily: "Geist Mono, monospace",
+          background: "rgba(0,0,0,0.4)", padding: "4px 10px", borderRadius: 6,
+          letterSpacing: "0.04em",
+        }}>
+          {attribution}
+        </div>
+      )}
+    </AbsoluteFill>
+  );
+};
+
+const BROLL_SHOT1 = Math.ceil(10 * FPS);    // 10 s
+const BROLL_SHOT7B = Math.ceil(5 * FPS);    // 5 s
+const BROLL_SHOT9 = Math.ceil(10 * FPS);    // 10 s
+
 interface TestVideoProps { timingData: TimingEntry[] }
 
 export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
@@ -145,6 +171,19 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
   let currentFrame = 0;
   const sequences: React.ReactNode[] = [];
 
+  // Cold-open B-roll (owner on cam)
+  sequences.push(
+    <Sequence key="broll-1" from={currentFrame} durationInFrames={BROLL_SHOT1}>
+      <BRollShot
+        src="shot1-cold-open.mp4"
+        durationFrames={BROLL_SHOT1}
+        caption="Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake."
+        attribution="Generated · alibaba/wan-2.6"
+      />
+    </Sequence>
+  );
+  currentFrame += BROLL_SHOT1;
+
   sequences.push(
     <Sequence key="intro" from={currentFrame} durationInFrames={INTRO_FRAMES}>
       <IntroCard />
@@ -152,6 +191,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
   );
   currentFrame += INTRO_FRAMES;
 
+  const scenarioIds = Array.from(scenarios.keys());
   for (const [scenarioId, entries] of scenarios) {
     sequences.push(
       <Sequence key={`title-${scenarioId}`} from={currentFrame} durationInFrames={TITLE_CARD_FRAMES}>
@@ -191,7 +231,35 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
       </Sequence>
     );
     currentFrame += scenarioDurationFrames;
+
+    // Cutaway B-roll right after the display-case screen scenario.
+    if (scenarioId === "display-case") {
+      sequences.push(
+        <Sequence key="broll-7b" from={currentFrame} durationInFrames={BROLL_SHOT7B}>
+          <BRollShot
+            src="shot7b-display-case.mp4"
+            durationFrames={BROLL_SHOT7B}
+            caption="At 5pm I take one photo. It counts what's left."
+            attribution="Generated · alibaba/wan-2.6"
+          />
+        </Sequence>
+      );
+      currentFrame += BROLL_SHOT7B;
+    }
   }
+
+  // Closing B-roll before outro card
+  sequences.push(
+    <Sequence key="broll-9" from={currentFrame} durationInFrames={BROLL_SHOT9}>
+      <BRollShot
+        src="shot9-close.mp4"
+        durationFrames={BROLL_SHOT9}
+        caption="By month two, the model knows my bakery better than I do."
+        attribution="Generated · alibaba/wan-2.6"
+      />
+    </Sequence>
+  );
+  currentFrame += BROLL_SHOT9;
 
   sequences.push(
     <Sequence key="outro" from={currentFrame} durationInFrames={OUTRO_FRAMES}>

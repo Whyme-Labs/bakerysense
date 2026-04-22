@@ -1,0 +1,26 @@
+[
+  {
+    "id": "shot1-cold-open",
+    "job_id": "PN0xbrScnmiQttnnmkWa",
+    "duration_s": 10,
+    "cost_usd": 1.2,
+    "cumulative_usd": 1.2,
+    "out": "docs/demo/broll/shot1-cold-open.mp4"
+  },
+  {
+    "id": "shot7b-display-case",
+    "job_id": "VyKaa2jQ3l43fsvYYlWe",
+    "duration_s": 5,
+    "cost_usd": 0.6,
+    "cumulative_usd": 1.7999999999999998,
+    "out": "docs/demo/broll/shot7b-display-case.mp4"
+  },
+  {
+    "id": "shot9-close",
+    "job_id": "ACuH5T0x8RhTP5BnVeXF",
+    "duration_s": 10,
+    "cost_usd": 1.2,
+    "cumulative_usd": 3.0,
+    "out": "docs/demo/broll/shot9-close.mp4"
+  }
+]
