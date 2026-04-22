@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BROLL="$ROOT/docs/demo/broll"
-INNER="$ROOT/bakerysense-web/e2e-demo/output/demo-full.mp4"
+INNER="$ROOT/bakerysense-web/e2e-demo/video/out/demo-full.mp4"
 OUT="$ROOT/docs/demo/demo-with-broll.mp4"
 TMP=$(mktemp -d)
 trap "rm -rf $TMP" EXIT

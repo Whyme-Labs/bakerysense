@@ -24,9 +24,9 @@ interface TimingEntry {
 
 const ROOT = path.resolve(__dirname);
 const SESSION = path.join(ROOT, "recordings", "session.webm");
-const PUBLIC_DIR = path.join(ROOT, "..", "e2e", "video", "public", "recordings");
+const PUBLIC_DIR = path.join(ROOT, "video", "public", "recordings");
 const TIMING_PATH = path.join(ROOT, "timing-data.json");
-const OUT_TIMING = path.join(ROOT, "..", "e2e", "video", "public", "timing-data.json");
+const OUT_TIMING = path.join(ROOT, "video", "public", "timing-data.json");
 
 async function main(): Promise<void> {
   const timing = JSON.parse(await fs.readFile(TIMING_PATH, "utf-8")) as TimingEntry[];

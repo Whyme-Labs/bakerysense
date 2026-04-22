@@ -1,3 +1,17 @@
+# Regenerable artifacts from record.ts / compose.ts / Remotion render
 recordings/
-node_modules/
+screenshots/
 output/
+timing-data.json
+test-report.md
+error-log.json
+
+# Remotion staging (B-roll copied from docs/demo/broll/ at render time)
+video/public/shot*.mp4
+video/public/recordings/
+video/public/timing-data.json
+video/out/
+video/node_modules/
+video/dist/
+
+node_modules/

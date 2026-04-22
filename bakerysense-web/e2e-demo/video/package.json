@@ -2,8 +2,8 @@
   "name": "e2e-demo-video",
   "private": true,
   "scripts": {
-    "studio": "remotion studio",
-    "render": "remotion render TestVideo ../../output/demo-full.mp4"
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts TestVideo out/demo-full.mp4 --timeout=180000"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",
