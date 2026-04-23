@@ -22,7 +22,7 @@ const SCENARIO_LABELS: Record<string, { title: string; subtitle: string }> = {
   "chat": { title: "Ask Gemma 4", subtitle: "Multi-tool agent loop grounded in the forecaster" },
   "display-case": { title: "Display case", subtitle: "Multimodal photo → unit counts → markdowns" },
   "retraining": { title: "Feedback loop", subtitle: "Actuals → queue → retrain → hot swap" },
-  "signout": { title: "Session close", subtitle: "JWT + refresh + JWKS rotation" },
+  "signout": { title: "Sign out", subtitle: "JWT + refresh-token tombstones + JWKS rotation" },
 };
 
 const BRAND_INK = "oklch(0.22 0 0)";
@@ -212,21 +212,35 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
             src={staticFile(`recordings/${lastEntry.video_file}`)}
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
-          {entries.map((entry, i) => {
-            const captionStartFrame = Math.floor((entry.timestamp_ms / 1000) * FPS);
-            const nextStart = i + 1 < entries.length
-              ? Math.floor((entries[i + 1].timestamp_ms / 1000) * FPS)
-              : scenarioDurationFrames;
-            const durationFrames = Math.max(nextStart - captionStartFrame, FPS * 2);
-            return (
-              <Caption
-                key={`caption-${entry.scenario}-${entry.step}`}
-                text={entry.description}
-                startFrame={captionStartFrame}
-                durationFrames={durationFrames}
-              />
-            );
-          })}
+          {(() => {
+            // Collapse captions that fire within 0.5 s of each other — consecutive
+            // Playwright fill()/click() steps can emit 3-4 caption events within
+            // a single video frame, which otherwise stacks visually because
+            // Caption's 6-frame cross-fade overlaps all of them simultaneously.
+            const MIN_GAP_MS = 500;
+            const kept = entries.filter((e, i) => {
+              const next = entries[i + 1];
+              if (!next) return true; // always keep the last caption
+              return next.timestamp_ms - e.timestamp_ms >= MIN_GAP_MS;
+            });
+            return kept.map((entry, i) => {
+              const captionStartFrame = Math.floor((entry.timestamp_ms / 1000) * FPS);
+              const isLast = i + 1 >= kept.length;
+              const nextStart = isLast
+                ? scenarioDurationFrames
+                : Math.floor((kept[i + 1].timestamp_ms / 1000) * FPS);
+              const raw = Math.max(nextStart - captionStartFrame, 20);
+              const durationFrames = isLast ? Math.max(raw, FPS * 2) : raw;
+              return (
+                <Caption
+                  key={`caption-${entry.scenario}-${entry.step}`}
+                  text={entry.description}
+                  startFrame={captionStartFrame}
+                  durationFrames={durationFrames}
+                />
+              );
+            });
+          })()}
         </AbsoluteFill>
       </Sequence>
     );

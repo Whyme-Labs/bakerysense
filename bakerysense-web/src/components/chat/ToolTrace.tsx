@@ -8,9 +8,9 @@ interface Props {
 
 export function ToolTrace({ name, args, result }: Props) {
   return (
-    <details className="rounded border border-[var(--border,#e5e7eb)] bg-[var(--surface-muted,#f9fafb)] text-xs">
+    <details open className="rounded border border-[var(--border,#e5e7eb)] bg-[var(--surface-muted,#f9fafb)] text-xs">
       <summary className="cursor-pointer select-none px-3 py-2 font-mono font-medium text-[var(--foreground-muted,#6b7280)] hover:text-[var(--foreground,#111827)]">
-        {`-> ${name}`}
+        {`→ ${name}`}
       </summary>
       <div className="border-t border-[var(--border,#e5e7eb)] px-3 py-2 space-y-2">
         <div>

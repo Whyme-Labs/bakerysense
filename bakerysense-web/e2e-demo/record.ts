@@ -13,7 +13,7 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 
 interface Step {
-  action: "navigate" | "click" | "fill" | "select" | "hover" | "scroll" | "press";
+  action: "navigate" | "click" | "fill" | "select" | "hover" | "scroll" | "press" | "wait";
   target: string;
   value?: string;
   key?: string;
@@ -33,7 +33,10 @@ interface TimingEntry {
   step: number;
   step_id: string;
   description: string;
+  /** ms from the scenario start (local to this scenario) */
   timestamp_ms: number;
+  /** ms from the session recording start (global across session.webm) */
+  session_ms: number;
   wait_duration_ms: number;
   dwell_ms: number;
   screenshot?: string;
@@ -53,7 +56,8 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 
 async function runStep(
   page: Page, scenario: string, stepIdx: number, step: Step, base: string,
-  scenarioStart: number, timing: TimingEntry[], errors: ErrorEntry[], videoFile: string,
+  scenarioStart: number, sessionStart: number,
+  timing: TimingEntry[], errors: ErrorEntry[], videoFile: string,
 ): Promise<void> {
   const t0 = Date.now();
   const stepId = slug(step.description).slice(0, 40);
@@ -61,7 +65,14 @@ async function runStep(
   try {
     if (step.action === "navigate") {
       const url = step.target.startsWith("http") ? step.target : `${base}${step.target}`;
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+      await page.goto(url, { waitUntil: "load", timeout });
+      // Force a reload — page.goto to same pathname + different ?query sometimes
+      // resolves via Next's client-side router without a fresh server render,
+      // leaving searchParams stale. An explicit reload guarantees the server
+      // component picks up the new query string.
+      await page.reload({ waitUntil: "load", timeout });
+      const final = page.url();
+      if (final !== url) console.log(`  [navigate] redirected: ${url} -> ${final}`);
     } else if (step.action === "click") {
       await page.click(step.target, { timeout });
     } else if (step.action === "fill") {
@@ -77,6 +88,10 @@ async function runStep(
     } else if (step.action === "press") {
       if (!step.key) throw new Error("press action needs key");
       await page.press(step.target, step.key, { timeout });
+    } else if (step.action === "wait") {
+      // no-op action — just exists so the subsequent waitFor blocks until the
+      // target selector appears. Useful for waiting on async UI arrivals
+      // (SSE streams, mounted components) without triggering a click/fill.
     }
     const waitT0 = Date.now();
     await page.waitForSelector(step.wait_for, { state: "visible", timeout });
@@ -95,7 +110,9 @@ async function runStep(
 
     timing.push({
       scenario, step: stepIdx + 1, step_id: stepId, description: step.description,
-      timestamp_ms: t0 - scenarioStart, wait_duration_ms: waitDur,
+      timestamp_ms: t0 - scenarioStart,
+      session_ms: t0 - sessionStart,
+      wait_duration_ms: waitDur,
       dwell_ms: step.dwell_ms ?? 0,
       screenshot: shotPath ? path.basename(shotPath) : undefined,
       video_file: videoFile,
@@ -128,6 +145,10 @@ async function main(): Promise<void> {
     recordVideo: { dir: REC_DIR, size: plan.config.viewport },
   });
   const page = await context.newPage();
+  // Capture session start AFTER newPage — Playwright's recordVideo timer
+  // begins here (approximately). timestamp_ms fields in timing-data are
+  // absolute within session.webm so compose.ts can cut without drift.
+  const sessionStart = Date.now();
 
   page.on("console", (m) => {
     if (m.type() === "error") {
@@ -146,7 +167,7 @@ async function main(): Promise<void> {
     let err: string | undefined;
     try {
       for (let i = 0; i < scenario.steps.length; i++) {
-        await runStep(page, scenario.id, i, scenario.steps[i], plan.config.base_url, scenarioStart, timing, errors, videoFile);
+        await runStep(page, scenario.id, i, scenario.steps[i], plan.config.base_url, scenarioStart, sessionStart, timing, errors, videoFile);
       }
     } catch (e) {
       ok = false;

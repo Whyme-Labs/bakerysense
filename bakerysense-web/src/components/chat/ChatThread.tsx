@@ -24,12 +24,21 @@ export function ChatThread({ branchId, prefill }: { branchId: string; prefill?: 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [turnStatus, setTurnStatus] = useState<string>("idle");
   const unsubRef = useRef<(() => void) | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (prefill) void send(prefill);
     return () => unsubRef.current?.();
   }, []);
+
+  // Keep the latest tool-trace / assistant bubble in view as SSE events arrive.
+  // Without this, new messages accumulate below the fold and the viewer only
+  // ever sees the first user bubble + a "…" placeholder.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, turnStatus]);
 
   async function send(text: string) {
     setMessages((m) => [...m, { role: "user", content: text }]);
@@ -64,7 +73,7 @@ export function ChatThread({ branchId, prefill }: { branchId: string; prefill?: 
 
   return (
     <div className="flex h-[70vh] flex-col rounded-lg border border-[var(--border)] bg-white">
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m, i) =>
           m.role === "tool" && m.tool ? (
             <ToolTrace key={i} name={m.tool.name} args={m.tool.args} result={m.tool.result} />

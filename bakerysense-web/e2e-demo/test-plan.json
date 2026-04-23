@@ -18,8 +18,8 @@
       "name": "Dashboard Bake Plan",
       "description": "Pick a branch and view today's bake plan",
       "steps": [
-        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_GPgqFKEoYimk",      "wait_for": "[data-testid^='row-sku-']",            "description": "Open Quito Centro dashboard",      "dwell_ms": 4000, "screenshot": true },
-        { "action": "select",    "target": "[data-testid='branch-selector']", "value": "3",        "wait_for": "[data-testid^='row-sku-']",            "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3000, "screenshot": true }
+        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_GPgqFKEoYimk",      "wait_for": "[data-testid^='row-sku-']",            "description": "Open Quito Centro dashboard",      "dwell_ms": 4500, "screenshot": true },
+        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_CI4s8i0UHuZz",      "wait_for": "[data-testid^='row-sku-']",            "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3500, "screenshot": true }
       ]
     },
     {
@@ -37,7 +37,8 @@
       "steps": [
         { "action": "navigate",  "target": "/t/favorita/chat?branch=brn_GPgqFKEoYimk",            "wait_for": "[data-testid='prompt-input']",         "description": "Open chat",                        "dwell_ms": 1500 },
         { "action": "fill",      "target": "[data-testid='prompt-input']",    "value": "How many TRADITIONAL BAGUETTE should I bake tomorrow? Explain why briefly.", "wait_for": "[data-testid='prompt-input']", "description": "Type the question", "dwell_ms": 1200 },
-        { "action": "click",     "target": "[data-testid='prompt-submit']",                      "wait_for": "[data-testid='message-bubble-assistant']", "description": "Submit to Gemma 4",            "timeout_ms": 90000, "dwell_ms": 4000, "screenshot": true }
+        { "action": "click",     "target": "[data-testid='prompt-submit']",                      "wait_for": "details[open] pre",                    "description": "Submit to Gemma 4",                "timeout_ms": 120000, "dwell_ms": 1000 },
+        { "action": "wait",      "target": "[data-testid='message-bubble-assistant'] strong",    "wait_for": "[data-testid='message-bubble-assistant'] strong", "description": "Wait for final answer",  "timeout_ms": 60000, "dwell_ms": 5500, "screenshot": true }
       ]
     },
     {
@@ -61,8 +62,8 @@
       "name": "Sign Out",
       "description": "Sign out and return to the sign-in page",
       "steps": [
-        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_GPgqFKEoYimk",      "wait_for": "[data-testid='branch-selector']",      "description": "Back to dashboard",               "dwell_ms": 1200 },
-        { "action": "click",     "target": "[data-testid='user-menu-signout']",                  "wait_for": "[data-testid='signin-slug']",          "description": "Click sign out",                   "dwell_ms": 2000, "screenshot": true }
+        { "action": "navigate",  "target": "/t/favorita/dashboard?branch=brn_GPgqFKEoYimk",      "wait_for": "[data-testid='branch-selector']",      "description": "Back to dashboard",                "dwell_ms": 1500 },
+        { "action": "click",     "target": "[data-testid='user-menu-signout']",                  "wait_for": "[data-testid='signin-slug']",          "description": "Click sign out",                   "dwell_ms": 4000, "screenshot": true }
       ]
     }
   ],

@@ -15,7 +15,10 @@ interface TimingEntry {
   step: number;
   step_id: string;
   description: string;
+  /** ms from scenario start */
   timestamp_ms: number;
+  /** ms from session.webm start (globally anchored) */
+  session_ms: number;
   wait_duration_ms: number;
   dwell_ms: number;
   screenshot?: string;
@@ -38,21 +41,23 @@ async function main(): Promise<void> {
     scenarios.get(e.scenario)!.push(e);
   }
 
-  let sessionOffsetMs = 0;
+  // Use absolute session_ms timestamps so cuts don't drift across scenarios.
+  // Each cut: start = first step's session_ms; end = last step's session_ms
+  // + wait + dwell + 500ms tail.
   const remotionTiming: TimingEntry[] = [];
   for (const [scenarioId, entries] of scenarios) {
+    const first = entries[0];
     const last = entries[entries.length - 1];
-    const durationMs = last.timestamp_ms + last.wait_duration_ms + (last.dwell_ms || 0);
-    const cutDurationMs = durationMs + 500;
-    const startSec = (sessionOffsetMs / 1000).toFixed(3);
-    const durSec = (cutDurationMs / 1000).toFixed(3);
+    const startMs = first.session_ms;
+    const endMs = last.session_ms + last.wait_duration_ms + (last.dwell_ms || 0) + 500;
+    const startSec = (startMs / 1000).toFixed(3);
+    const durSec = ((endMs - startMs) / 1000).toFixed(3);
     const outWebm = path.join(PUBLIC_DIR, `${scenarioId}.webm`);
     console.log(`Cutting ${scenarioId}: start=${startSec}s dur=${durSec}s`);
     execFileSync("ffmpeg", [
       "-y", "-ss", startSec, "-i", SESSION, "-t", durSec, "-c", "copy", outWebm,
     ], { stdio: ["ignore", "ignore", "ignore"] });
     for (const e of entries) remotionTiming.push({ ...e, video_file: `${scenarioId}.webm` });
-    sessionOffsetMs += cutDurationMs;
   }
 
   await fs.writeFile(OUT_TIMING, JSON.stringify(remotionTiming, null, 2));
