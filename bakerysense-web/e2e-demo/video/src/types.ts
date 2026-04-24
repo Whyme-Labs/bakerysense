@@ -12,6 +12,8 @@ export interface TimingEntry {
   timestamp_ms: number;
   /** How long the element-based wait took (ms) */
   wait_duration_ms: number;
+  /** Extra ms held after the wait resolves (for visual emphasis) */
+  dwell_ms?: number;
   /** Screenshot filename relative to e2e/screenshots/ */
   screenshot: string;
   /** Video filename relative to e2e/recordings/ */
