@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { resolveSession } from "@/lib/auth/session";
 import { verifyCsrf } from "@/lib/auth/csrf";
 import { requireRole } from "@/lib/rbac";
@@ -29,7 +29,10 @@ export async function GET(req: Request): Promise<Response> {
 		const session = await resolveSession(env, req);
 		if (!session) throw new Unauthorized();
 		const db = getDb(env);
-		const rows = await db.select().from(branches).where(eq(branches.tenantId, session.claims.tid)).all();
+		const rows = await db.select().from(branches)
+			.where(eq(branches.tenantId, session.claims.tid))
+			.orderBy(asc(branches.name))
+			.all();
 		if (session.claims.role !== "tenant_admin" && session.claims.role !== "platform_admin" && session.claims.branches) {
 			const allowed = new Set(session.claims.branches);
 			return Response.json({ branches: rows.filter((b) => allowed.has(b.id)) });

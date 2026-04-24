@@ -40,6 +40,7 @@ export function TriggerRetrainButton() {
         </span>
       )}
       <button
+        data-testid="trigger-retrain-button"
         onClick={() => void handleClick()}
         disabled={pending}
         className="rounded px-3 py-1.5 text-xs font-medium border border-[var(--border)] bg-white hover:bg-[var(--surface-raised)] disabled:opacity-50"

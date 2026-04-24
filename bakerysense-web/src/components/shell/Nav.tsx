@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/use-session";
 import { BranchSelector } from "./BranchSelector";
 import { UserMenu } from "./UserMenu";
@@ -15,8 +15,11 @@ const ITEMS = [
 export function Nav() {
   const { claims } = useSession();
   const params = useParams<{ slug: string }>();
+  const search = useSearchParams();
   const slug = params?.slug ?? "";
   const isAdmin = claims?.role === "tenant_admin" || claims?.role === "platform_admin";
+  const branch = search.get("branch");
+  const branchQs = branch ? `?branch=${encodeURIComponent(branch)}` : "";
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
@@ -25,13 +28,15 @@ export function Nav() {
         </Link>
         <nav className="ml-4 flex gap-1 text-sm">
           {ITEMS.map((it) => (
-            <Link key={it.href} href={`/t/${slug}/${it.href}`}
+            <Link key={it.href} href={`/t/${slug}/${it.href}${branchQs}`}
+                  data-testid={`nav-${it.href}`}
                   className="rounded px-3 py-1.5 text-[var(--ink-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]">
               {it.label}
             </Link>
           ))}
           {isAdmin && (
             <Link href={`/t/${slug}/admin/connectors`}
+                  data-testid="nav-admin"
                   className="rounded px-3 py-1.5 text-[var(--ink-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]">
               Admin
             </Link>
