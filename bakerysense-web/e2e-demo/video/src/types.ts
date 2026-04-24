@@ -10,6 +10,8 @@ export interface TimingEntry {
   description: string;
   /** Milliseconds from start of this scenario's recording */
   timestamp_ms: number;
+  /** Milliseconds from start of session.webm (global recording timeline) */
+  session_ms: number;
   /** How long the element-based wait took (ms) */
   wait_duration_ms: number;
   /** Extra ms held after the wait resolves (for visual emphasis) */

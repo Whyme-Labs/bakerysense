@@ -162,9 +162,8 @@ const BROLL_SHOT9 = Math.ceil(10 * FPS);    // 10 s
 // Chat scenario time-remap: the Gemma round-trip takes ~54 s of wall-clock
 // "thinking" time that we want to compress to 5 s without losing the tool-
 // trace reveal or the final answer. We slice the source recording into three
-// segments and give the middle one a ~10× playback rate.
-const CHAT_SPEEDUP_START_MS = 4000;    // after user clicks "Send"
-const CHAT_SPEEDUP_END_MS = 57700;     // just before first tool-trace + answer land
+// segments and give the middle one a ~10× playback rate. The speedup window
+// is derived per-recording from the "submit-to-gemma" step's wait duration.
 const CHAT_SPEEDUP_TARGET_S = 5;
 
 interface ChatSegment {
@@ -175,24 +174,28 @@ interface ChatSegment {
   compDurationFrames: number;
 }
 
-function buildChatSegments(endMs: number): ChatSegment[] {
+function buildChatSegments(
+  endMs: number,
+  speedupStartMs: number,
+  speedupEndMs: number,
+): ChatSegment[] {
   const segs: ChatSegment[] = [];
   let cursor = 0;
 
   const segA: ChatSegment = {
     sourceStartMs: 0,
-    sourceEndMs: CHAT_SPEEDUP_START_MS,
+    sourceEndMs: speedupStartMs,
     rate: 1,
     compStartFrame: cursor,
-    compDurationFrames: Math.ceil((CHAT_SPEEDUP_START_MS / 1000) * FPS),
+    compDurationFrames: Math.ceil((speedupStartMs / 1000) * FPS),
   };
   cursor += segA.compDurationFrames;
   segs.push(segA);
 
-  const speedupSrcMs = CHAT_SPEEDUP_END_MS - CHAT_SPEEDUP_START_MS;
+  const speedupSrcMs = speedupEndMs - speedupStartMs;
   const segB: ChatSegment = {
-    sourceStartMs: CHAT_SPEEDUP_START_MS,
-    sourceEndMs: CHAT_SPEEDUP_END_MS,
+    sourceStartMs: speedupStartMs,
+    sourceEndMs: speedupEndMs,
     rate: speedupSrcMs / 1000 / CHAT_SPEEDUP_TARGET_S,
     compStartFrame: cursor,
     compDurationFrames: Math.ceil(CHAT_SPEEDUP_TARGET_S * FPS),
@@ -200,18 +203,34 @@ function buildChatSegments(endMs: number): ChatSegment[] {
   cursor += segB.compDurationFrames;
   segs.push(segB);
 
-  if (endMs > CHAT_SPEEDUP_END_MS) {
+  if (endMs > speedupEndMs) {
     const segC: ChatSegment = {
-      sourceStartMs: CHAT_SPEEDUP_END_MS,
+      sourceStartMs: speedupEndMs,
       sourceEndMs: endMs,
       rate: 1,
       compStartFrame: cursor,
-      compDurationFrames: Math.ceil(((endMs - CHAT_SPEEDUP_END_MS) / 1000) * FPS),
+      compDurationFrames: Math.ceil(((endMs - speedupEndMs) / 1000) * FPS),
     };
     cursor += segC.compDurationFrames;
     segs.push(segC);
   }
   return segs;
+}
+
+/**
+ * The speedup window is the span from "submit click" to "tool trace visible"
+ * for the chat scenario. Expressed in scenario-local ms (post-initial-nav).
+ */
+function findChatSpeedupWindow(entries: TimingEntry[], scenarioStartSessionMs: number): [number, number] | null {
+  // The step with the biggest wait_duration is the Gemma round-trip.
+  let best: TimingEntry | null = null;
+  for (const e of entries) {
+    if (!best || e.wait_duration_ms > best.wait_duration_ms) best = e;
+  }
+  if (!best || best.wait_duration_ms < 10_000) return null;
+  const startMs = best.session_ms - scenarioStartSessionMs;
+  const endMs = best.session_ms + best.wait_duration_ms - scenarioStartSessionMs;
+  return [Math.max(0, startMs), Math.max(startMs + 1000, endMs)];
 }
 
 function chatSourceMsToCompFrame(sourceMs: number, segs: ChatSegment[]): number {
@@ -225,8 +244,8 @@ function chatSourceMsToCompFrame(sourceMs: number, segs: ChatSegment[]): number 
   return last.compStartFrame + last.compDurationFrames;
 }
 
-export function computeChatTotalFrames(endMs: number): number {
-  const segs = buildChatSegments(endMs);
+export function computeChatTotalFrames(endMs: number, speedupStartMs: number, speedupEndMs: number): number {
+  const segs = buildChatSegments(endMs, speedupStartMs, speedupEndMs);
   const last = segs[segs.length - 1];
   return last.compStartFrame + last.compDurationFrames;
 }
@@ -263,7 +282,6 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
   );
   currentFrame += INTRO_FRAMES;
 
-  const scenarioIds = Array.from(scenarios.keys());
   for (const [scenarioId, entries] of scenarios) {
     sequences.push(
       <Sequence key={`title-${scenarioId}`} from={currentFrame} durationInFrames={TITLE_CARD_FRAMES}>
@@ -272,29 +290,52 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
     );
     currentFrame += TITLE_CARD_FRAMES;
 
+    const firstEntry = entries[0];
     const lastEntry = entries[entries.length - 1];
-    const scenarioDurationMs =
-      lastEntry.timestamp_ms + lastEntry.wait_duration_ms + (lastEntry.dwell_ms || 0) + 500;
+
+    // Anchor the scenario at "after the initial navigate resolves" — this
+    // skips the brief frame where the previous scenario's last page is still
+    // visible, which otherwise makes sign-in flash back after the title card.
+    const scenarioSourceStartMs = firstEntry.session_ms + firstEntry.wait_duration_ms;
+    // Cap the trailing wait: when the last step is a click that triggers a
+    // page transition (like "Submit sign-in" landing on the dashboard), we
+    // don't want to sit on the NEXT scenario's page while still narrating
+    // this one. Short waits (pure wait-for-content, like chat's final answer)
+    // stay uncapped.
+    const TRAILING_WAIT_CAP_MS = 1500;
+    const trailingWait = Math.min(lastEntry.wait_duration_ms, TRAILING_WAIT_CAP_MS);
+    const scenarioSourceEndMs =
+      lastEntry.session_ms + trailingWait + (lastEntry.dwell_ms || 0) + 500;
+    const scenarioDurationMs = scenarioSourceEndMs - scenarioSourceStartMs;
+
+    // Caption fires when the action starts (e.g. the click), so it narrates
+    // what's about to happen and remains visible through the post-action load.
+    // For the first step we clamp to 0 because the scenario clip is anchored
+    // at "after the initial navigate resolves".
+    const captionLocalMs = (e: TimingEntry): number =>
+      Math.max(0, e.session_ms - scenarioSourceStartMs);
 
     const MIN_GAP_MS = 500;
     const kept = entries.filter((e, i) => {
       const next = entries[i + 1];
       if (!next) return true;
-      return next.timestamp_ms - e.timestamp_ms >= MIN_GAP_MS;
+      return captionLocalMs(next) - captionLocalMs(e) >= MIN_GAP_MS;
     });
 
     if (scenarioId === "chat") {
-      // Piecewise time-remap: only the Gemma round-trip window is accelerated.
-      const segments = buildChatSegments(scenarioDurationMs);
+      const window = findChatSpeedupWindow(entries, scenarioSourceStartMs);
+      if (!window) throw new Error("chat scenario has no long-wait step to compress");
+      const [speedupStartMs, speedupEndMs] = window;
+      const segments = buildChatSegments(scenarioDurationMs, speedupStartMs, speedupEndMs);
       const scenarioDurationFrames = segments[segments.length - 1].compStartFrame
         + segments[segments.length - 1].compDurationFrames;
 
       const captions = kept.map((entry, i) => {
-        const captionStartFrame = chatSourceMsToCompFrame(entry.timestamp_ms, segments);
+        const captionStartFrame = chatSourceMsToCompFrame(captionLocalMs(entry), segments);
         const isLast = i + 1 >= kept.length;
         const nextStart = isLast
           ? scenarioDurationFrames
-          : chatSourceMsToCompFrame(kept[i + 1].timestamp_ms, segments);
+          : chatSourceMsToCompFrame(captionLocalMs(kept[i + 1]), segments);
         const raw = Math.max(nextStart - captionStartFrame, 20);
         const durationFrames = isLast ? Math.max(raw, FPS * 2) : raw;
         return (
@@ -310,31 +351,34 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
       sequences.push(
         <Sequence key={`video-${scenarioId}`} from={currentFrame} durationInFrames={scenarioDurationFrames}>
           <AbsoluteFill style={{ backgroundColor: "#000" }}>
-            {segments.map((seg, idx) => (
-              <Sequence
-                key={`chat-seg-${idx}`}
-                from={seg.compStartFrame}
-                durationInFrames={seg.compDurationFrames}
-              >
-                <OffthreadVideo
-                  src={staticFile(`recordings/${lastEntry.video_file}`)}
-                  startFrom={Math.floor((seg.sourceStartMs / 1000) * FPS)}
-                  playbackRate={seg.rate}
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                />
-                {seg.rate > 1.01 && (
-                  <div style={{
-                    position: "absolute", top: 20, left: 20,
-                    background: "rgba(20,15,10,0.75)", color: "oklch(0.95 0.04 70)",
-                    padding: "4px 10px", borderRadius: 6,
-                    fontFamily: "Geist Mono, monospace", fontSize: 13,
-                    letterSpacing: "0.04em",
-                  }}>
-                    {seg.rate.toFixed(1)}× · Gemma 4 round-trip
-                  </div>
-                )}
-              </Sequence>
-            ))}
+            {segments.map((seg, idx) => {
+              const sourceStartSec = (scenarioSourceStartMs + seg.sourceStartMs) / 1000;
+              return (
+                <Sequence
+                  key={`chat-seg-${idx}`}
+                  from={seg.compStartFrame}
+                  durationInFrames={seg.compDurationFrames}
+                >
+                  <OffthreadVideo
+                    src={staticFile(`recordings/${lastEntry.video_file}`)}
+                    startFrom={Math.floor(sourceStartSec * FPS)}
+                    playbackRate={seg.rate}
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  />
+                  {seg.rate > 1.01 && (
+                    <div style={{
+                      position: "absolute", top: 20, left: 20,
+                      background: "rgba(20,15,10,0.75)", color: "oklch(0.95 0.04 70)",
+                      padding: "4px 10px", borderRadius: 6,
+                      fontFamily: "Geist Mono, monospace", fontSize: 13,
+                      letterSpacing: "0.04em",
+                    }}>
+                      {seg.rate.toFixed(1)}× · Gemma 4 round-trip
+                    </div>
+                  )}
+                </Sequence>
+              );
+            })}
             {captions}
           </AbsoluteFill>
         </Sequence>
@@ -347,14 +391,15 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
           <AbsoluteFill style={{ backgroundColor: "#000" }}>
             <OffthreadVideo
               src={staticFile(`recordings/${lastEntry.video_file}`)}
+              startFrom={Math.floor((scenarioSourceStartMs / 1000) * FPS)}
               style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
             {kept.map((entry, i) => {
-              const captionStartFrame = Math.floor((entry.timestamp_ms / 1000) * FPS);
+              const captionStartFrame = Math.floor((captionLocalMs(entry) / 1000) * FPS);
               const isLast = i + 1 >= kept.length;
               const nextStart = isLast
                 ? scenarioDurationFrames
-                : Math.floor((kept[i + 1].timestamp_ms / 1000) * FPS);
+                : Math.floor((captionLocalMs(kept[i + 1]) / 1000) * FPS);
               const raw = Math.max(nextStart - captionStartFrame, 20);
               const durationFrames = isLast ? Math.max(raw, FPS * 2) : raw;
               return (

@@ -22,13 +22,21 @@ function computeTotalFrames(timingData: TimingEntry[]): number {
   let totalFrames = BROLL_SHOT1 + INTRO_FRAMES;
   for (const [scenarioId, entries] of scenarios) {
     totalFrames += TITLE_CARD_FRAMES;
-    const lastEntry = entries[entries.length - 1];
-    const scenarioDurationMs =
-      lastEntry.timestamp_ms + lastEntry.wait_duration_ms + (lastEntry.dwell_ms || 0) + 500;
+    const first = entries[0];
+    const last = entries[entries.length - 1];
+    const sourceStartMs = first.session_ms + first.wait_duration_ms;
+    const TRAILING_WAIT_CAP_MS = 1500;
+    const trailingWait = Math.min(last.wait_duration_ms, TRAILING_WAIT_CAP_MS);
+    const sourceEndMs = last.session_ms + trailingWait + (last.dwell_ms || 0) + 500;
+    const durationMs = sourceEndMs - sourceStartMs;
     if (scenarioId === "chat") {
-      totalFrames += computeChatTotalFrames(scenarioDurationMs);
+      let best = entries[0];
+      for (const e of entries) if (e.wait_duration_ms > best.wait_duration_ms) best = e;
+      const speedupStart = Math.max(0, best.session_ms - sourceStartMs);
+      const speedupEnd = Math.max(speedupStart + 1000, best.session_ms + best.wait_duration_ms - sourceStartMs);
+      totalFrames += computeChatTotalFrames(durationMs, speedupStart, speedupEnd);
     } else {
-      totalFrames += Math.ceil((scenarioDurationMs / 1000) * FPS);
+      totalFrames += Math.ceil((durationMs / 1000) * FPS);
     }
     if (scenarioId === "display-case") totalFrames += BROLL_SHOT7B;
   }
