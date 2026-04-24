@@ -297,13 +297,16 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
     // skips the brief frame where the previous scenario's last page is still
     // visible, which otherwise makes sign-in flash back after the title card.
     const scenarioSourceStartMs = firstEntry.session_ms + firstEntry.wait_duration_ms;
-    // Cap the trailing wait: when the last step is a click that triggers a
-    // page transition (like "Submit sign-in" landing on the dashboard), we
-    // don't want to sit on the NEXT scenario's page while still narrating
-    // this one. Short waits (pure wait-for-content, like chat's final answer)
-    // stay uncapped.
+    // Cap the trailing wait only when the last step is a click/submit that
+    // triggers a page transition (e.g. "Submit sign-in" lands on the
+    // dashboard) — otherwise we sit on the next scenario's page while
+    // narrating this one. "wait" actions (chat's final-answer reveal) keep
+    // their full wait duration.
+    const lastIsWait = lastEntry.action === "wait";
     const TRAILING_WAIT_CAP_MS = 1500;
-    const trailingWait = Math.min(lastEntry.wait_duration_ms, TRAILING_WAIT_CAP_MS);
+    const trailingWait = lastIsWait
+      ? lastEntry.wait_duration_ms
+      : Math.min(lastEntry.wait_duration_ms, TRAILING_WAIT_CAP_MS);
     const scenarioSourceEndMs =
       lastEntry.session_ms + trailingWait + (lastEntry.dwell_ms || 0) + 500;
     const scenarioDurationMs = scenarioSourceEndMs - scenarioSourceStartMs;

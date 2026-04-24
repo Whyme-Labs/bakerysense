@@ -18,8 +18,10 @@
       "name": "Dashboard Bake Plan",
       "description": "Pick a branch and view today's bake plan",
       "steps": [
-        { "action": "select",    "target": "[data-testid='branch-selector']", "value": "3",                      "wait_for": "[data-testid^='row-sku-']",            "description": "Pick Quito Centro",                "dwell_ms": 3500, "screenshot": true },
-        { "action": "select",    "target": "[data-testid='branch-selector']", "value": "2",                      "wait_for": "[data-testid^='row-sku-']",            "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3500, "screenshot": true }
+        { "action": "click",     "target": "[data-testid='branch-selector']",                    "wait_for": "[data-testid='branch-selector-menu']",                          "description": "Open branch picker",               "dwell_ms": 800 },
+        { "action": "click",     "target": "[data-testid='branch-selector-menu'] button:has-text('Quito Centro')",     "wait_for": "[data-testid^='row-sku-']",        "description": "Pick Quito Centro",                "dwell_ms": 3500, "screenshot": true },
+        { "action": "click",     "target": "[data-testid='branch-selector']",                    "wait_for": "[data-testid='branch-selector-menu']",                          "description": "Switch branch",                    "dwell_ms": 800 },
+        { "action": "click",     "target": "[data-testid='branch-selector-menu'] button:has-text('Guayaquil Urdesa')", "wait_for": "[data-testid^='row-sku-']",        "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3500, "screenshot": true }
       ]
     },
     {
@@ -27,18 +29,17 @@
       "name": "SKU Detail & Drivers",
       "description": "Open the SKU detail page to see the quantile band + drivers",
       "steps": [
-        { "action": "click",     "target": "[data-testid='row-sku-TRADITIONAL BAGUETTE'] a[href*='/sku/']",      "wait_for": "h1",                                   "description": "Open TRADITIONAL BAGUETTE detail", "dwell_ms": 5000, "screenshot": true }
+        { "action": "click",     "target": "[data-testid='row-sku-TRADITIONAL BAGUETTE'] a[href*='/sku/']",      "wait_for": "h1",                                   "description": "Open TRADITIONAL BAGUETTE detail", "dwell_ms": 5500, "screenshot": true }
       ]
     },
     {
       "id": "chat",
       "name": "Ask Gemma 4",
-      "description": "Ask Gemma 4 for the bake quantity and watch the tool-call trace",
+      "description": "Click Ask Gemma why from SKU detail and watch the tool-call trace",
       "steps": [
-        { "action": "click",     "target": "[data-testid='nav-chat']",                           "wait_for": "[data-testid='prompt-input']",         "description": "Open chat",                        "dwell_ms": 1500 },
-        { "action": "fill",      "target": "[data-testid='prompt-input']",    "value": "How many TRADITIONAL BAGUETTE should I bake tomorrow? Explain why briefly.", "wait_for": "[data-testid='prompt-input']", "description": "Type the question", "dwell_ms": 1200 },
-        { "action": "click",     "target": "[data-testid='prompt-submit']",                      "wait_for": "details[open] pre",                    "description": "Submit to Gemma 4",                "timeout_ms": 120000, "dwell_ms": 1000 },
-        { "action": "wait",      "target": "[data-testid='message-bubble-assistant'] strong",    "wait_for": "[data-testid='message-bubble-assistant'] strong", "description": "Wait for final answer",  "timeout_ms": 60000, "dwell_ms": 5500, "screenshot": true }
+        { "action": "click",     "target": "[data-testid='ask-gemma-why']",                      "wait_for": "[data-testid='message-bubble-user']",  "description": "Ask Gemma why",                    "dwell_ms": 500 },
+        { "action": "wait",      "target": "details pre, [data-testid='turn-status']",           "wait_for": "[data-testid='turn-status']",          "description": "Gemma plans tool calls",           "timeout_ms": 120000, "dwell_ms": 500 },
+        { "action": "wait",      "target": "[data-testid='message-bubble-assistant']",           "wait_for": "[data-testid='message-bubble-assistant']", "description": "Gemma grounds answer in tool results",  "timeout_ms": 120000, "dwell_ms": 5500, "screenshot": true }
       ]
     },
     {
@@ -64,7 +65,7 @@
       "description": "Sign out and return to the sign-in page",
       "steps": [
         { "action": "click",     "target": "[data-testid='nav-dashboard']",                      "wait_for": "[data-testid='branch-selector']",      "description": "Back to dashboard",                "dwell_ms": 1500 },
-        { "action": "click",     "target": "[data-testid='user-menu-signout']",                  "wait_for": "[data-testid='signin-slug']",          "description": "Click sign out",                   "dwell_ms": 4000, "screenshot": true }
+        { "action": "click",     "target": "[data-testid='user-menu-signout']",                  "wait_for": "[data-testid='signin-slug']",          "description": "Click sign out",                   "dwell_ms": 1200, "screenshot": true }
       ]
     }
   ],

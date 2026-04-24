@@ -25,8 +25,11 @@ function computeTotalFrames(timingData: TimingEntry[]): number {
     const first = entries[0];
     const last = entries[entries.length - 1];
     const sourceStartMs = first.session_ms + first.wait_duration_ms;
+    const lastIsWait = last.action === "wait";
     const TRAILING_WAIT_CAP_MS = 1500;
-    const trailingWait = Math.min(last.wait_duration_ms, TRAILING_WAIT_CAP_MS);
+    const trailingWait = lastIsWait
+      ? last.wait_duration_ms
+      : Math.min(last.wait_duration_ms, TRAILING_WAIT_CAP_MS);
     const sourceEndMs = last.session_ms + trailingWait + (last.dwell_ms || 0) + 500;
     const durationMs = sourceEndMs - sourceStartMs;
     if (scenarioId === "chat") {

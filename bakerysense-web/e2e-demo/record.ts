@@ -33,6 +33,7 @@ interface TimingEntry {
   step: number;
   step_id: string;
   description: string;
+  action: Step["action"];
   /** ms from the scenario start (local to this scenario) */
   timestamp_ms: number;
   /** ms from the session recording start (global across session.webm) */
@@ -110,6 +111,7 @@ async function runStep(
 
     timing.push({
       scenario, step: stepIdx + 1, step_id: stepId, description: step.description,
+      action: step.action,
       timestamp_ms: t0 - scenarioStart,
       session_ms: t0 - sessionStart,
       wait_duration_ms: waitDur,
@@ -180,20 +182,24 @@ async function main(): Promise<void> {
   }
 
   // Playwright writes one webm per page — we have a single page and want per-scenario cuts.
-  // Close the context to flush the video file, then rename to the first scenario's id.
+  // Close the context to flush the video file, then rename to session.webm.
   await page.close();
   await context.close();
   await browser.close();
 
-  // After close, the recordings dir has one webm. Rename to session.webm — the video compiler
-  // will use timing-data.json timestamps to cut it per-scenario.
-  const files = (await fs.readdir(REC_DIR)).filter((f) => f.endsWith(".webm"));
-  if (files.length === 1) {
-    const src = path.join(REC_DIR, files[0]);
+  // After close, find the newest .webm (Playwright names it with a UUID) and
+  // move it to session.webm, overwriting any prior session.webm from an older run.
+  const webms = (await fs.readdir(REC_DIR)).filter((f) => f.endsWith(".webm"));
+  const fresh = webms
+    .filter((f) => f !== "session.webm")
+    .map((f) => ({ f, path: path.join(REC_DIR, f) }));
+  if (fresh.length > 0) {
+    const stats = await Promise.all(fresh.map(async (x) => ({ ...x, mtime: (await fs.stat(x.path)).mtimeMs })));
+    stats.sort((a, b) => b.mtime - a.mtime);
     const dst = path.join(REC_DIR, "session.webm");
-    if (src !== dst) await fs.rename(src, dst);
-    // Rewrite video_file for all timing entries to session.webm; the compiler
-    // cuts per-scenario using timestamp_ms + next-scenario start.
+    await fs.rm(dst, { force: true });
+    await fs.rename(stats[0].path, dst);
+    for (const leftover of stats.slice(1)) await fs.rm(leftover.path, { force: true });
     for (const t of timing) t.video_file = "session.webm";
   }
 

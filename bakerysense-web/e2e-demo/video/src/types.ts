@@ -8,6 +8,8 @@ export interface TimingEntry {
   step_id: string;
   /** Human-readable description shown as caption */
   description: string;
+  /** Playwright action type for this step */
+  action?: "navigate" | "click" | "fill" | "select" | "hover" | "scroll" | "press" | "wait";
   /** Milliseconds from start of this scenario's recording */
   timestamp_ms: number;
   /** Milliseconds from start of session.webm (global recording timeline) */
