@@ -203,32 +203,38 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
     const lastEntry = entries[entries.length - 1];
     const scenarioDurationMs =
       lastEntry.timestamp_ms + lastEntry.wait_duration_ms + (lastEntry.dwell_ms || 0) + 500;
-    const scenarioDurationFrames = Math.ceil((scenarioDurationMs / 1000) * FPS);
+    // Chat is 50+ s of Gemma round-trip with a shimmering "working" card;
+    // compress it 1.8× so the video spends less time on the loading UI.
+    // Other scenarios play at 1× for clarity.
+    const rate = scenarioId === "chat" ? 1.8 : 1.0;
+    const scenarioDurationFrames = Math.ceil((scenarioDurationMs / rate / 1000) * FPS);
 
     sequences.push(
       <Sequence key={`video-${scenarioId}`} from={currentFrame} durationInFrames={scenarioDurationFrames}>
         <AbsoluteFill style={{ backgroundColor: "#000" }}>
           <OffthreadVideo
             src={staticFile(`recordings/${lastEntry.video_file}`)}
+            playbackRate={rate}
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
           {(() => {
             // Collapse captions that fire within 0.5 s of each other — consecutive
-            // Playwright fill()/click() steps can emit 3-4 caption events within
-            // a single video frame, which otherwise stacks visually because
-            // Caption's 6-frame cross-fade overlaps all of them simultaneously.
+            // Playwright fill()/click() steps emit a burst that otherwise stacks
+            // on-screen because Caption's 6-frame fade overlaps them.
             const MIN_GAP_MS = 500;
             const kept = entries.filter((e, i) => {
               const next = entries[i + 1];
-              if (!next) return true; // always keep the last caption
+              if (!next) return true;
               return next.timestamp_ms - e.timestamp_ms >= MIN_GAP_MS;
             });
             return kept.map((entry, i) => {
-              const captionStartFrame = Math.floor((entry.timestamp_ms / 1000) * FPS);
+              // timestamp_ms is source-space; divide by playback rate to map
+              // to composition-space frames.
+              const captionStartFrame = Math.floor((entry.timestamp_ms / rate / 1000) * FPS);
               const isLast = i + 1 >= kept.length;
               const nextStart = isLast
                 ? scenarioDurationFrames
-                : Math.floor((kept[i + 1].timestamp_ms / 1000) * FPS);
+                : Math.floor((kept[i + 1].timestamp_ms / rate / 1000) * FPS);
               const raw = Math.max(nextStart - captionStartFrame, 20);
               const durationFrames = isLast ? Math.max(raw, FPS * 2) : raw;
               return (
@@ -241,6 +247,17 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
               );
             });
           })()}
+          {rate > 1.0 && (
+            <div style={{
+              position: "absolute", top: 20, left: 20,
+              background: "rgba(20,15,10,0.75)", color: "oklch(0.95 0.04 70)",
+              padding: "4px 10px", borderRadius: 6,
+              fontFamily: "Geist Mono, monospace", fontSize: 13,
+              letterSpacing: "0.04em",
+            }}>
+              {rate.toFixed(1)}× · Gemma 4 round-trip
+            </div>
+          )}
         </AbsoluteFill>
       </Sequence>
     );

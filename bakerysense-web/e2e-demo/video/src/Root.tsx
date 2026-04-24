@@ -25,7 +25,8 @@ function computeTotalFrames(timingData: TimingEntry[]): number {
     const lastEntry = entries[entries.length - 1];
     const scenarioDurationMs =
       lastEntry.timestamp_ms + lastEntry.wait_duration_ms + (lastEntry.dwell_ms || 0) + 500;
-    totalFrames += Math.ceil((scenarioDurationMs / 1000) * FPS);
+    const rate = scenarioId === "chat" ? 1.8 : 1.0;
+    totalFrames += Math.ceil((scenarioDurationMs / rate / 1000) * FPS);
     if (scenarioId === "display-case") totalFrames += BROLL_SHOT7B;
   }
   totalFrames += BROLL_SHOT9 + OUTRO_FRAMES;
