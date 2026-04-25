@@ -4,9 +4,10 @@ import { useParams, usePathname } from "next/navigation";
 
 const TABS = [
   { href: "connectors", label: "Connectors" },
+  { href: "data", label: "Data" },
   { href: "users", label: "Users" },
   { href: "branches", label: "Branches" },
-  { href: "retraining", label: "Retraining" },
+  { href: "retraining", label: "Model" },
   { href: "audit", label: "Audit" },
 ];
 

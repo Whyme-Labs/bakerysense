@@ -49,7 +49,7 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     const ranked = Object.entries(contribs)
       .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
       .slice(0, top_k)
-      .map(([name, val]) => ({ feature: name, contribution: Math.round(val * 100) / 100 }));
+      .map(([name, val]) => ({ feature: name, contribution: Math.round(val * 1000) / 1000 }));
     return { sku, on_date, branch_id, drivers: ranked };
   },
 };

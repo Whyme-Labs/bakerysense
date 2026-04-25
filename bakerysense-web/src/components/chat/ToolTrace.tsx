@@ -20,6 +20,27 @@ function str(v: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
 
+const FRIENDLY_FEATURE: Record<string, string> = {
+  lag_1: "Yesterday's sales",
+  lag_7: "Last week, same day",
+  lag_14: "Two weeks ago",
+  lag_28: "Four weeks ago",
+  rolling_mean_7: "Past-week average",
+  rolling_mean_28: "Past-month average",
+  dow: "Day of week",
+  is_weekend: "Weekend",
+  is_holiday: "Holiday",
+  month: "Month of year",
+  promo: "Promotion active",
+  price: "Price level",
+  family: "SKU family",
+};
+
+function friendlyFeature(name: string): string {
+  if (FRIENDLY_FEATURE[name]) return FRIENDLY_FEATURE[name];
+  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function Chip({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded border border-[var(--border)] bg-white px-2.5 py-1.5 text-xs">
@@ -66,31 +87,44 @@ function DriversBody({ result }: { result: unknown }) {
   if (!Array.isArray(drivers) || drivers.length === 0) return null;
   const maxAbs = Math.max(
     ...drivers.map((d) => Math.abs(num((d as { contribution?: unknown }).contribution) ?? 0)),
-    0.0001,
+    0.001,
   );
   return (
-    <ul className="space-y-1.5">
-      {drivers.map((d, i) => {
-        const feature = str((d as { feature?: unknown }).feature) ?? "feature";
-        const contribution = num((d as { contribution?: unknown }).contribution) ?? 0;
-        const pct = Math.max(2, (Math.abs(contribution) / maxAbs) * 100);
-        const isPos = contribution >= 0;
-        return (
-          <li key={i} className="flex items-center gap-3 text-xs">
-            <span className="w-20 truncate font-mono text-[var(--ink-muted)]">{feature.replace(/_/g, " ")}</span>
-            <div className="relative h-2 flex-1 overflow-hidden rounded bg-[var(--surface-muted)]">
-              <div
-                style={{ width: `${pct}%` }}
-                className={`absolute inset-y-0 rounded ${isPos ? "bg-[var(--accent-good,oklch(0.72_0.13_155))]" : "bg-[var(--accent-warn,oklch(0.76_0.14_70))]"}`}
-              />
-            </div>
-            <span className="w-12 text-right font-mono tabular-nums text-[var(--ink)]">
-              {contribution > 0 ? "+" : ""}{contribution.toFixed(1)}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-[9px] font-medium uppercase tracking-wider text-[var(--ink-subtle)]">
+        <span>Pulls down</span>
+        <span>Pulls up</span>
+      </div>
+      <ul className="space-y-1.5">
+        {drivers.map((d, i) => {
+          const feature = str((d as { feature?: unknown }).feature) ?? "feature";
+          const contribution = num((d as { contribution?: unknown }).contribution) ?? 0;
+          const pct = (Math.abs(contribution) / maxAbs) * 50;
+          const isPos = contribution >= 0;
+          const negligible = Math.abs(contribution) < 0.01;
+          return (
+            <li key={i} className="grid grid-cols-[8rem_1fr_3rem] items-center gap-2 text-xs">
+              <span className="truncate text-[var(--ink)]" title={feature}>{friendlyFeature(feature)}</span>
+              <div className="relative h-2.5 rounded bg-white">
+                <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--border-strong)]" />
+                {!negligible && (
+                  <div
+                    style={{
+                      width: `${Math.max(2, pct)}%`,
+                      left: isPos ? "50%" : `${50 - Math.max(2, pct)}%`,
+                    }}
+                    className={`absolute inset-y-0 rounded ${isPos ? "bg-[var(--accent-good,oklch(0.72_0.13_155))]" : "bg-[var(--accent-warn,oklch(0.76_0.14_70))]"}`}
+                  />
+                )}
+              </div>
+              <span className={`text-right font-mono tabular-nums ${negligible ? "text-[var(--ink-subtle)]" : "text-[var(--ink)]"}`}>
+                {contribution > 0 ? "+" : contribution < 0 ? "−" : ""}{Math.abs(contribution).toFixed(2)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

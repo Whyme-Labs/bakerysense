@@ -14,14 +14,34 @@
       ]
     },
     {
+      "id": "data-preview",
+      "name": "Data BakerySense Loaded",
+      "description": "Show what sales history is in the system",
+      "steps": [
+        { "action": "click",     "target": "[data-testid='nav-admin']",                          "wait_for": "[data-testid='admin-nav-data']",       "description": "Open admin",                       "dwell_ms": 1200 },
+        { "action": "click",     "target": "[data-testid='admin-nav-data']",                     "wait_for": "[data-testid='data-summary']",         "description": "View loaded sales history",        "dwell_ms": 2500, "screenshot": true },
+        { "action": "scroll",    "target": "[data-testid='data-preview-table']",                 "wait_for": "[data-testid='data-preview-table']",   "description": "Recent rows from the POS feed",    "dwell_ms": 3500, "screenshot": true }
+      ]
+    },
+    {
+      "id": "model-info",
+      "name": "Predictor & Retraining",
+      "description": "Show what predictor is running and how it retrains",
+      "steps": [
+        { "action": "click",     "target": "[data-testid='admin-nav-retraining']",               "wait_for": "[data-testid='model-info-panel']",     "description": "Open the model page",              "dwell_ms": 4000, "screenshot": true },
+        { "action": "scroll",    "target": "[data-testid='trigger-retrain-button']",             "wait_for": "[data-testid='trigger-retrain-button']", "description": "Retrain on the latest actuals",  "dwell_ms": 3000, "screenshot": true }
+      ]
+    },
+    {
       "id": "dashboard",
       "name": "Dashboard Bake Plan",
       "description": "Pick a branch and view today's bake plan",
       "steps": [
+        { "action": "click",     "target": "[data-testid='nav-dashboard']",                      "wait_for": "[data-testid='branch-selector']",      "description": "Today's bake plan",                "dwell_ms": 1500 },
         { "action": "click",     "target": "[data-testid='branch-selector']",                    "wait_for": "[data-testid='branch-selector-menu']",                          "description": "Open branch picker",               "dwell_ms": 800 },
-        { "action": "click",     "target": "[data-testid='branch-selector-menu'] button:has-text('Quito Centro')",     "wait_for": "[data-testid^='row-sku-']",        "description": "Pick Quito Centro",                "dwell_ms": 3500, "screenshot": true },
+        { "action": "click",     "target": "[data-testid='branch-selector-menu'] button:has-text('Quito Centro')",     "wait_for": "[data-testid^='row-sku-']",        "description": "Pick Quito Centro",                "dwell_ms": 3000, "screenshot": true },
         { "action": "click",     "target": "[data-testid='branch-selector']",                    "wait_for": "[data-testid='branch-selector-menu']",                          "description": "Switch branch",                    "dwell_ms": 800 },
-        { "action": "click",     "target": "[data-testid='branch-selector-menu'] button:has-text('Guayaquil Urdesa')", "wait_for": "[data-testid^='row-sku-']",        "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3500, "screenshot": true }
+        { "action": "click",     "target": "[data-testid='branch-selector-menu'] button:has-text('Guayaquil Urdesa')", "wait_for": "[data-testid^='row-sku-']",        "description": "Switch to Guayaquil Urdesa",       "dwell_ms": 3000, "screenshot": true }
       ]
     },
     {
@@ -48,15 +68,6 @@
       "description": "Show the photo-upload surface",
       "steps": [
         { "action": "click",     "target": "[data-testid='nav-display-case']",                   "wait_for": "[data-testid='photo-upload-input']",   "description": "Open display case",                "dwell_ms": 4000, "screenshot": true }
-      ]
-    },
-    {
-      "id": "retraining",
-      "name": "Retrain History",
-      "description": "Show the feedback-loop retrain panel",
-      "steps": [
-        { "action": "click",     "target": "[data-testid='nav-admin']",                          "wait_for": "[data-testid='admin-nav-retraining']", "description": "Open admin",                       "dwell_ms": 1500 },
-        { "action": "click",     "target": "[data-testid='admin-nav-retraining']",               "wait_for": "[data-testid='trigger-retrain-button']",      "description": "Open retrain admin",               "dwell_ms": 4500, "screenshot": true }
       ]
     },
     {

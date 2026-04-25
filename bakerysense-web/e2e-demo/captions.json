@@ -8,9 +8,21 @@
     "5": "JWT + Argon2id auth.",
     "6": "Dashboard loads \u2014 today's bake plan is ready."
   },
+  "data-preview": {
+    "1": "Admin \u2014 connectors, data, model, and audit.",
+    "2": "Sales history loaded from your POS \u2014 the forecaster trains on this.",
+    "3": "Per SKU per branch per day. Honest tabular data, no black box."
+  },
+  "model-info": {
+    "1": "LightGBM gradient-boosted trees \u2014 7 quantile heads, runs in pure TypeScript inside the Worker.",
+    "2": "Retrain on the latest actuals; hot-swapped via a KV pointer with no downtime."
+  },
   "dashboard": {
-    "1": "Three SKUs, three quantities. Each row: q0.5, q0.7, confidence band, newsvendor bake.",
-    "2": "Switch branches \u2014 same model, different sales patterns."
+    "1": "Today's bake plan \u2014 newsvendor-picked from the quantile forecast.",
+    "2": "Open the branch picker.",
+    "3": "Quito Centro \u2014 small urban store.",
+    "4": "Switch branches \u2014 same model, different sales patterns.",
+    "5": "Guayaquil Urdesa \u2014 different demand shape entirely."
   },
   "sku-detail": {
     "1": "Quantile band shows the full demand distribution; drivers explain the forecast."

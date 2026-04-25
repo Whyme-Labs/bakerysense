@@ -7,88 +7,91 @@ interface Props {
   drivers: Driver[];
 }
 
-const ROW_H = 24;
-const LABEL_W = 100;
-const CENTER_X = 150;
-const BAR_MAX = 100; // max bar half-width in px
+const FRIENDLY: Record<string, string> = {
+  lag_1: "Yesterday's sales",
+  lag_7: "Last week, same day",
+  lag_14: "Two weeks ago",
+  lag_28: "Four weeks ago",
+  rolling_mean_7: "Past-week average",
+  rolling_mean_28: "Past-month average",
+  dow: "Day of week",
+  is_weekend: "Weekend",
+  is_holiday: "Holiday",
+  month: "Month of year",
+  promo: "Promotion active",
+  price: "Price level",
+  family: "SKU family",
+};
+
+function friendly(name: string): string {
+  if (FRIENDLY[name]) return FRIENDLY[name];
+  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatContribution(val: number): string {
+  if (Math.abs(val) < 0.01) return val >= 0 ? "+0.00" : "−0.00";
+  const sign = val > 0 ? "+" : val < 0 ? "−" : "";
+  return `${sign}${Math.abs(val).toFixed(2)}`;
+}
 
 export function DriverBars({ drivers }: Props) {
   if (drivers.length === 0) {
-    return (
-      <p className="text-sm text-[var(--ink-subtle)]">No driver data available.</p>
-    );
+    return <p className="text-sm text-[var(--ink-subtle)]">No driver data available.</p>;
   }
 
   const sorted = [...drivers].sort(
     (a, b) => Math.abs(b.contribution) - Math.abs(a.contribution),
   );
 
-  const maxAbs = Math.max(...sorted.map((d) => Math.abs(d.contribution)), 1);
-  const H = sorted.length * ROW_H + 8;
+  const maxAbs = Math.max(...sorted.map((d) => Math.abs(d.contribution)), 0.001);
 
   return (
-    <svg
-      viewBox={`0 0 300 ${H}`}
-      className="w-full max-w-md"
-      style={{ height: H }}
-      role="img"
-      aria-label="SHAP feature contributions"
-    >
-      {sorted.map((d, i) => {
-        const y = i * ROW_H + 4;
-        const barW = (Math.abs(d.contribution) / maxAbs) * BAR_MAX;
-        const isPos = d.contribution >= 0;
-        const barX = isPos ? CENTER_X : CENTER_X - barW;
-        const barColor = isPos ? "var(--accent-good)" : "var(--accent-warn)";
-        const labelX = LABEL_W - 4;
-        const valueX = isPos ? CENTER_X + barW + 4 : CENTER_X - barW - 4;
-        const valueAnchor = isPos ? "start" : "end";
-
-        return (
-          <g key={d.feature}>
-            {/* Feature label */}
-            <text
-              x={labelX}
-              y={y + ROW_H / 2 + 4}
-              textAnchor="end"
-              fontSize="9"
-              fill="var(--ink-muted)"
-            >
-              {d.feature.replace(/_/g, " ")}
-            </text>
-            {/* Bar */}
-            <rect
-              x={barX}
-              y={y + 6}
-              width={barW}
-              height={ROW_H - 10}
-              fill={barColor}
-              fillOpacity="0.85"
-              rx="2"
-            />
-            {/* Value label */}
-            <text
-              x={valueX}
-              y={y + ROW_H / 2 + 4}
-              textAnchor={valueAnchor}
-              fontSize="8"
-              fill="var(--ink)"
-            >
-              {d.contribution > 0 ? "+" : ""}
-              {d.contribution.toFixed(1)}
-            </text>
-          </g>
-        );
-      })}
-      {/* Center axis line */}
-      <line
-        x1={CENTER_X}
-        y1="0"
-        x2={CENTER_X}
-        y2={H}
-        stroke="var(--border-strong)"
-        strokeWidth="0.5"
-      />
-    </svg>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider text-[var(--ink-subtle)]">
+        <span>Pulls demand DOWN</span>
+        <span>Pulls demand UP</span>
+      </div>
+      <ul className="space-y-2.5">
+        {sorted.map((d, i) => {
+          const pct = (Math.abs(d.contribution) / maxAbs) * 50;
+          const isPos = d.contribution >= 0;
+          const negligible = Math.abs(d.contribution) < 0.01;
+          return (
+            <li key={d.feature + i} className="grid grid-cols-[10rem_1fr_3.5rem] items-center gap-3">
+              <span className="truncate text-xs font-medium text-[var(--ink)]" title={d.feature}>
+                {friendly(d.feature)}
+              </span>
+              <div className="relative h-4 rounded bg-[var(--surface-muted)]">
+                <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--border-strong)]" />
+                {!negligible && (
+                  <div
+                    style={{
+                      width: `${Math.max(2, pct)}%`,
+                      left: isPos ? "50%" : `${50 - Math.max(2, pct)}%`,
+                    }}
+                    className={`absolute inset-y-0 rounded ${
+                      isPos
+                        ? "bg-[var(--accent-good,oklch(0.72_0.13_155))]"
+                        : "bg-[var(--accent-warn,oklch(0.76_0.14_70))]"
+                    }`}
+                  />
+                )}
+              </div>
+              <span
+                className={`text-right font-mono text-xs tabular-nums ${
+                  negligible
+                    ? "text-[var(--ink-subtle)]"
+                    : isPos
+                      ? "text-[oklch(0.55_0.13_155)]"
+                      : "text-[oklch(0.55_0.14_50)]"
+                }`}
+              >
+                {formatContribution(d.contribution)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
