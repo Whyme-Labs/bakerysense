@@ -29,6 +29,18 @@ const voiceoverByAnchor: Map<string, VoiceoverEntry> = new Map(
   (voiceoverManifest as VoiceoverEntry[]).map((entry) => [entry.scenario_anchor, entry]),
 );
 
+const VO_TAIL_MS = 500;
+
+export function audioDurationFrames(anchor: string, fps: number = 30): number {
+  const entry = voiceoverByAnchor.get(anchor);
+  if (!entry) return 0;
+  return Math.ceil(((entry.duration_ms + VO_TAIL_MS) / 1000) * fps);
+}
+
+export function audioPaddedFrames(anchor: string, baseFrames: number, fps: number = 30): number {
+  return Math.max(baseFrames, audioDurationFrames(anchor, fps));
+}
+
 function VoiceoverFor({ anchor }: { anchor: string }): React.ReactElement | null {
   const entry = voiceoverByAnchor.get(anchor);
   if (!entry) return null;
@@ -292,27 +304,29 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
   let currentFrame = 0;
   const sequences: React.ReactNode[] = [];
 
-  // Cold-open B-roll (owner on cam)
+  // Cold-open B-roll (owner on cam). Pad to fit voiceover if it's longer.
+  const broll1Frames = audioPaddedFrames("broll-shot1", BROLL_SHOT1, FPS);
   sequences.push(
-    <Sequence key="broll-1" from={currentFrame} durationInFrames={BROLL_SHOT1}>
+    <Sequence key="broll-1" from={currentFrame} durationInFrames={broll1Frames}>
       <BRollShot
         src="shot1-cold-open.mp4"
-        durationFrames={BROLL_SHOT1}
+        durationFrames={broll1Frames}
         caption="Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake."
         attribution="Generated · alibaba/wan-2.6"
       />
       <VoiceoverFor anchor="broll-shot1" />
     </Sequence>
   );
-  currentFrame += BROLL_SHOT1;
+  currentFrame += broll1Frames;
 
+  const introFrames = audioPaddedFrames("intro", INTRO_FRAMES, FPS);
   sequences.push(
-    <Sequence key="intro" from={currentFrame} durationInFrames={INTRO_FRAMES}>
+    <Sequence key="intro" from={currentFrame} durationInFrames={introFrames}>
       <IntroCard />
       <VoiceoverFor anchor="intro" />
     </Sequence>
   );
-  currentFrame += INTRO_FRAMES;
+  currentFrame += introFrames;
 
   for (const [scenarioId, entries] of scenarios) {
     sequences.push(
@@ -421,7 +435,8 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
       );
       currentFrame += scenarioDurationFrames;
     } else {
-      const scenarioDurationFrames = Math.ceil((scenarioDurationMs / 1000) * FPS);
+      const baseFrames = Math.ceil((scenarioDurationMs / 1000) * FPS);
+      const scenarioDurationFrames = audioPaddedFrames(scenarioId, baseFrames, FPS);
       sequences.push(
         <Sequence key={`video-${scenarioId}`} from={currentFrame} durationInFrames={scenarioDurationFrames}>
           <AbsoluteFill style={{ backgroundColor: "#000" }}>
@@ -456,34 +471,36 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
 
     // Cutaway B-roll right after the display-case screen scenario.
     if (scenarioId === "display-case") {
+      const broll7bFrames = audioPaddedFrames("broll-shot7b", BROLL_SHOT7B, FPS);
       sequences.push(
-        <Sequence key="broll-7b" from={currentFrame} durationInFrames={BROLL_SHOT7B}>
+        <Sequence key="broll-7b" from={currentFrame} durationInFrames={broll7bFrames}>
           <BRollShot
             src="shot7b-display-case.mp4"
-            durationFrames={BROLL_SHOT7B}
+            durationFrames={broll7bFrames}
             caption="At 5pm I take one photo. It counts what's left."
             attribution="Generated · alibaba/wan-2.6"
           />
           <VoiceoverFor anchor="broll-shot7b" />
         </Sequence>
       );
-      currentFrame += BROLL_SHOT7B;
+      currentFrame += broll7bFrames;
     }
   }
 
   // Closing B-roll before outro card
+  const broll9Frames = audioPaddedFrames("broll-shot9", BROLL_SHOT9, FPS);
   sequences.push(
-    <Sequence key="broll-9" from={currentFrame} durationInFrames={BROLL_SHOT9}>
+    <Sequence key="broll-9" from={currentFrame} durationInFrames={broll9Frames}>
       <BRollShot
         src="shot9-close.mp4"
-        durationFrames={BROLL_SHOT9}
+        durationFrames={broll9Frames}
         caption="By month two, the model knows my bakery better than I do."
         attribution="Generated · alibaba/wan-2.6"
       />
       <VoiceoverFor anchor="broll-shot9" />
     </Sequence>
   );
-  currentFrame += BROLL_SHOT9;
+  currentFrame += broll9Frames;
 
   sequences.push(
     <Sequence key="outro" from={currentFrame} durationInFrames={OUTRO_FRAMES}>

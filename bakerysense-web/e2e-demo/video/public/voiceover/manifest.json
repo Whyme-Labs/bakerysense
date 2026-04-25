@@ -1,1 +1,122 @@
-[]
+[
+  {
+    "id": "A_cold_open",
+    "voice": "Ryan",
+    "speaker": "owner",
+    "scenario_anchor": "broll-shot1",
+    "text": "Yesterday I threw out forty croissants. I needed something that would just tell me how many to bake.",
+    "audio_file": "A_cold_open.wav",
+    "duration_ms": 6880,
+    "byte_size": 330284
+  },
+  {
+    "id": "B_brand_intro",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "intro",
+    "text": "BakerySense \u2014 powered by Gemma 4.",
+    "audio_file": "B_brand_intro.wav",
+    "duration_ms": 2720,
+    "byte_size": 130604
+  },
+  {
+    "id": "C_landing",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "landing",
+    "text": "Sign in with the bakery's tenant slug, email, and password. We use ES256 JWT and Argon2id, but that's plumbing. The interesting part is what comes next.",
+    "audio_file": "C_landing.wav",
+    "duration_ms": 13040,
+    "byte_size": 625964
+  },
+  {
+    "id": "D_data_preview",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "data-preview",
+    "text": "Sales history loaded \u2014 per SKU, per branch, per day. The forecaster trains on this.",
+    "audio_file": "D_data_preview.wav",
+    "duration_ms": 5680,
+    "byte_size": 272684
+  },
+  {
+    "id": "E_model_info",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "model-info",
+    "text": "LightGBM trees, seven quantile heads. Pure TypeScript inside a Cloudflare Worker.",
+    "audio_file": "E_model_info.wav",
+    "duration_ms": 6400,
+    "byte_size": 307244
+  },
+  {
+    "id": "F_dashboard",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "dashboard",
+    "text": "Today's bake plan \u2014 newsvendor-picked from the forecast. Switch branches: same model, different demand shape.",
+    "audio_file": "F_dashboard.wav",
+    "duration_ms": 6960,
+    "byte_size": 334124
+  },
+  {
+    "id": "G_sku_detail",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "sku-detail",
+    "text": "Open a SKU. The quantile band shows where demand is likely to land; the driver bars show why.",
+    "audio_file": "G_sku_detail.wav",
+    "duration_ms": 6640,
+    "byte_size": 318764
+  },
+  {
+    "id": "H_chat",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "chat",
+    "text": "Click Ask Gemma why. The question is prefilled and sent to Gemma 4. It calls the forecaster, reads the SHAP-style drivers, and grounds its answer in the numbers.",
+    "audio_file": "H_chat.wav",
+    "duration_ms": 11760,
+    "byte_size": 564524
+  },
+  {
+    "id": "I_display_case_owner",
+    "voice": "Ryan",
+    "speaker": "owner",
+    "scenario_anchor": "broll-shot7b",
+    "text": "At five PM I take one photo. It counts what is left.",
+    "audio_file": "I_display_case_owner.wav",
+    "duration_ms": 5600,
+    "byte_size": 268844
+  },
+  {
+    "id": "I2_display_case_vo",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "display-case",
+    "text": "Gemma 4 counts the display case and suggests markdowns.",
+    "audio_file": "I2_display_case_vo.wav",
+    "duration_ms": 5920,
+    "byte_size": 284204
+  },
+  {
+    "id": "J_signout",
+    "voice": "Aiden",
+    "speaker": "vo",
+    "scenario_anchor": "signout",
+    "text": "Sign out. Refresh-token tombstones and JWKS rotation handle the rest.",
+    "audio_file": "J_signout.wav",
+    "duration_ms": 5680,
+    "byte_size": 272684
+  },
+  {
+    "id": "K_close",
+    "voice": "Ryan",
+    "speaker": "owner",
+    "scenario_anchor": "broll-shot9",
+    "text": "By month two, the model knows my bakery better than I do.",
+    "audio_file": "K_close.wav",
+    "duration_ms": 4400,
+    "byte_size": 211244
+  }
+]

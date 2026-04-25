@@ -1,6 +1,6 @@
 import React from "react";
 import { Composition } from "remotion";
-import { TestVideo, computeChatTotalFrames } from "./TestVideo";
+import { TestVideo, computeChatTotalFrames, audioPaddedFrames } from "./TestVideo";
 import type { TimingEntry } from "./types";
 import defaultTiming from "../public/timing-data.json";
 
@@ -19,7 +19,8 @@ function computeTotalFrames(timingData: TimingEntry[]): number {
     if (!scenarios.has(entry.scenario)) scenarios.set(entry.scenario, []);
     scenarios.get(entry.scenario)!.push(entry);
   }
-  let totalFrames = BROLL_SHOT1 + INTRO_FRAMES;
+  let totalFrames = audioPaddedFrames("broll-shot1", BROLL_SHOT1, FPS)
+    + audioPaddedFrames("intro", INTRO_FRAMES, FPS);
   for (const [scenarioId, entries] of scenarios) {
     totalFrames += TITLE_CARD_FRAMES;
     const first = entries[0];
@@ -37,13 +38,17 @@ function computeTotalFrames(timingData: TimingEntry[]): number {
       for (const e of entries) if (e.wait_duration_ms > best.wait_duration_ms) best = e;
       const speedupStart = Math.max(0, best.session_ms - sourceStartMs);
       const speedupEnd = Math.max(speedupStart + 1000, best.session_ms + best.wait_duration_ms - sourceStartMs);
-      totalFrames += computeChatTotalFrames(durationMs, speedupStart, speedupEnd);
+      const baseChatFrames = computeChatTotalFrames(durationMs, speedupStart, speedupEnd);
+      totalFrames += audioPaddedFrames(scenarioId, baseChatFrames, FPS);
     } else {
-      totalFrames += Math.ceil((durationMs / 1000) * FPS);
+      const baseFrames = Math.ceil((durationMs / 1000) * FPS);
+      totalFrames += audioPaddedFrames(scenarioId, baseFrames, FPS);
     }
-    if (scenarioId === "display-case") totalFrames += BROLL_SHOT7B;
+    if (scenarioId === "display-case") {
+      totalFrames += audioPaddedFrames("broll-shot7b", BROLL_SHOT7B, FPS);
+    }
   }
-  totalFrames += BROLL_SHOT9 + OUTRO_FRAMES;
+  totalFrames += audioPaddedFrames("broll-shot9", BROLL_SHOT9, FPS) + OUTRO_FRAMES;
   return Math.max(totalFrames, 1);
 }
 
