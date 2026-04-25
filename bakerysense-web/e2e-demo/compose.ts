@@ -31,6 +31,32 @@ const TIMING_PATH = path.join(ROOT, "timing-data.json");
 const OUT_TIMING = path.join(ROOT, "video", "public", "timing-data.json");
 const VO_OUT_DIR = path.join(ROOT, "voiceover", "out");
 const VO_PUBLIC_DIR = path.join(ROOT, "video", "public", "voiceover");
+const BROLL_SOURCE_DIR = path.join(ROOT, "..", "..", "docs", "demo", "broll");
+const BROLL_PUBLIC_DIR = path.join(ROOT, "video", "public");
+const BROLL_FILES = ["shot1-cold-open.mp4", "shot7b-display-case.mp4", "shot9-close.mp4"];
+
+async function copyBroll(): Promise<void> {
+  // The canonical B-roll lives at docs/demo/broll/ (tracked, regenerable via
+  // scripts/generate_broll.py). Remotion reads from video/public/. Sync them
+  // every compose so the render never silently uses a stale clip.
+  for (const f of BROLL_FILES) {
+    const src = path.join(BROLL_SOURCE_DIR, f);
+    const dst = path.join(BROLL_PUBLIC_DIR, f);
+    try {
+      const [srcStat, dstStat] = await Promise.all([
+        fs.stat(src),
+        fs.stat(dst).catch(() => null),
+      ]);
+      if (dstStat && srcStat.size === dstStat.size && srcStat.mtimeMs <= dstStat.mtimeMs) {
+        continue;
+      }
+      await fs.copyFile(src, dst);
+      console.log(`Copied ${f} -> video/public/`);
+    } catch (e) {
+      console.warn(`B-roll copy skipped for ${f}: ${(e as Error).message}`);
+    }
+  }
+}
 
 async function copyVoiceoverIfPresent(): Promise<void> {
   // If the voiceover generator has run, copy its outputs into Remotion's
@@ -71,6 +97,7 @@ async function main(): Promise<void> {
   console.log(`Copied session.webm -> ${PUBLIC_DIR}`);
   console.log(`Wrote ${out.length} timing entries to ${OUT_TIMING}`);
 
+  await copyBroll();
   await copyVoiceoverIfPresent();
 }
 
