@@ -1,6 +1,7 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Audio,
   OffthreadVideo,
   Sequence,
   staticFile,
@@ -9,6 +10,35 @@ import {
 } from "remotion";
 import { Caption } from "./Caption";
 import type { TimingEntry } from "./types";
+import voiceoverManifest from "../public/voiceover/manifest.json";
+
+interface VoiceoverEntry {
+  id: string;
+  voice: string;
+  speaker: "owner" | "vo";
+  scenario_anchor: string;
+  text: string;
+  audio_file: string;
+  duration_ms: number;
+  byte_size: number;
+}
+
+// Index voiceover sections by their anchor for O(1) lookup while building
+// the sequence list. Empty manifest → no <Audio> emitted, video stays silent.
+const voiceoverByAnchor: Map<string, VoiceoverEntry> = new Map(
+  (voiceoverManifest as VoiceoverEntry[]).map((entry) => [entry.scenario_anchor, entry]),
+);
+
+function VoiceoverFor({ anchor }: { anchor: string }): React.ReactElement | null {
+  const entry = voiceoverByAnchor.get(anchor);
+  if (!entry) return null;
+  return (
+    <Audio
+      src={staticFile(`voiceover/${entry.audio_file}`)}
+      volume={entry.speaker === "owner" ? 1.0 : 0.95}
+    />
+  );
+}
 
 const FPS = 30;
 const TITLE_CARD_FRAMES = 45;
@@ -271,6 +301,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
         caption="Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake."
         attribution="Generated · alibaba/wan-2.6"
       />
+      <VoiceoverFor anchor="broll-shot1" />
     </Sequence>
   );
   currentFrame += BROLL_SHOT1;
@@ -278,6 +309,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
   sequences.push(
     <Sequence key="intro" from={currentFrame} durationInFrames={INTRO_FRAMES}>
       <IntroCard />
+      <VoiceoverFor anchor="intro" />
     </Sequence>
   );
   currentFrame += INTRO_FRAMES;
@@ -384,6 +416,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
             })}
             {captions}
           </AbsoluteFill>
+          <VoiceoverFor anchor={scenarioId} />
         </Sequence>
       );
       currentFrame += scenarioDurationFrames;
@@ -415,6 +448,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
               );
             })}
           </AbsoluteFill>
+          <VoiceoverFor anchor={scenarioId} />
         </Sequence>
       );
       currentFrame += scenarioDurationFrames;
@@ -430,6 +464,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
             caption="At 5pm I take one photo. It counts what's left."
             attribution="Generated · alibaba/wan-2.6"
           />
+          <VoiceoverFor anchor="broll-shot7b" />
         </Sequence>
       );
       currentFrame += BROLL_SHOT7B;
@@ -445,6 +480,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
         caption="By month two, the model knows my bakery better than I do."
         attribution="Generated · alibaba/wan-2.6"
       />
+      <VoiceoverFor anchor="broll-shot9" />
     </Sequence>
   );
   currentFrame += BROLL_SHOT9;

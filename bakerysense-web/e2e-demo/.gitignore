@@ -14,4 +14,11 @@ video/out/
 video/node_modules/
 video/dist/
 
+# Voiceover-generated audio (regenerable via generate.ts)
+voiceover/out/
+# Audio is regenerated; manifest.json stays in git as a typed fallback
+# so the Remotion bundler always finds a (possibly empty) manifest.
+video/public/voiceover/*.mp3
+video/public/voiceover/*.wav
+
 node_modules/
