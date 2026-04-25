@@ -1,125 +1,135 @@
-# BakerySense — 3-Minute Demo Storyboard
+# BakerySense — Demo Storyboard
 
-Target runtime: 3:00. 9 shots. Screen captures at 1920×1080 intercut with bakery B-roll.
+Target runtime: ~2:18. Eight E2E screen-capture shots wrapped by three B-roll bookends (cold open, mid-cut display case, close). Captures at 1440×900 — the rendered video upscales naturally.
+
+The actual playback artifact is `docs/demo/demo-final.mp4`. The Remotion composition lives at `bakerysense-web/e2e-demo/video/src/TestVideo.tsx`. On-screen captions are sourced from `bakerysense-web/e2e-demo/captions.json`; spoken VO is in `script.md`.
 
 ---
 
 ## Shot list
 
-### Shot 1 — Cold open (0:00–0:15)
+### Shot 0 — Cold open (~0:00–0:10) · B-roll
 
 | Field | Detail |
 |---|---|
-| **Time** | 0:00–0:15 |
-| **Camera** | Bakery B-roll, hand-held, waist-up. Owner behind counter, early morning light, trays visible behind them. |
-| **On-screen action** | No screen. Owner faces camera. Rack of croissants in background. |
-| **Bakery owner's line** | "Yesterday I threw out 40 croissants. The day before, I ran out by noon. I needed something that would just tell me how many to bake." |
-| **Data-testid anchors** | — (no UI) |
+| Camera | `docs/demo/broll/shot1-cold-open.mp4` — handheld, owner behind counter, morning light. |
+| On-screen | No app UI. Bakery owner faces camera. |
+| Owner line | "Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake." |
 
 ---
 
-### Shot 2 — Landing page → sign-in (0:15–0:30)
+### Shot 1 — Landing & sign-in (~0:13–0:26) · scenario `landing`
 
 | Field | Detail |
 |---|---|
-| **Time** | 0:15–0:30 |
-| **Camera** | Screen capture. Browser at `https://bakerysense.app/` (landing page), then navigates to `/signin`. |
-| **On-screen action** | Cursor clicks "Sign in". Signin form appears. User types tenant slug `favorita`, email `demo@bakerysense.app`, password. Clicks submit. Redirect to dashboard (no branch selected yet). |
-| **Bakery owner's line** | *(voiceover — see script.md)* |
-| **Data-testid anchors** | `data-testid="signin-slug"`, `data-testid="signin-email"`, `data-testid="signin-password"`, `data-testid="signin-submit"` |
+| Camera | Screen capture. URL: `/`, then `/signin`. |
+| On-screen action | Landing page. Click *Sign in*. Fill `favorita`, `demo@bakerysense.app`, password. Submit. Redirect to dashboard with no branch selected yet. |
+| VO | Sections C of `script.md`. |
+| Caption (auto) | "BakerySense — AI production copilot for retail chains." → "Submit sign-in." |
+| Data-testid anchors | `signin-slug`, `signin-email`, `signin-password`, `signin-submit`, `branch-selector`. |
 
 ---
 
-### Shot 3 — Dashboard: bake plan + QualityBadge (0:30–0:48)
+### Shot 2 — Data BakerySense loaded (~0:26–0:36) · scenario `data-preview`
 
 | Field | Detail |
 |---|---|
-| **Time** | 0:30–0:48 |
-| **Camera** | Screen capture. URL: `/t/favorita/dashboard?branch=brn_quito_centro`. |
-| **On-screen action** | BakePlanTable loads with 3 SKUs (TRADITIONAL BAGUETTE, CROISSANT, PAIN AU CHOCOLAT). Each row shows bake quantity. QualityBadge beside each SKU name shows WAPE percentage. Badge for TRADITIONAL BAGUETTE shows amber "25%" or green "18%". |
-| **Bakery owner's line** | "This is my bake plan for tomorrow. That amber number — that's the forecast error. Green means I've given it enough history to trust it." |
-| **Data-testid anchors** | `data-testid="row-sku-TRADITIONAL BAGUETTE"`, `data-testid="row-sku-CROISSANT"`, `data-testid="row-sku-PAIN AU CHOCOLAT"` |
+| Camera | Screen capture. URL: `/t/favorita/admin/data`. |
+| On-screen action | Click *Admin* in the top nav, then *Data* in the admin sub-nav. The 4-tile summary appears (sales rows, SKUs covered, branches, date range), followed by a 30-day daily-totals sparkline and a recent-rows preview table. |
+| VO | Section D of `script.md`. |
+| Caption (auto) | "Admin — connectors, data, model, and audit." → "Per SKU per branch per day. Honest tabular data, no black box." |
+| Data-testid anchors | `nav-admin`, `admin-nav-data`, `data-summary`, `data-preview-table`. |
 
 ---
 
-### Shot 4 — Dashboard: branch selector swap (0:48–1:00)
+### Shot 3 — Predictor & model page (~0:36–0:46) · scenario `model-info`
 
 | Field | Detail |
 |---|---|
-| **Time** | 0:48–1:00 |
-| **Camera** | Screen capture. Same dashboard URL. |
-| **On-screen action** | Cursor clicks `data-testid="branch-selector"` dropdown. Selects "Guayaquil Urdesa". Dashboard reloads with different bake quantities. Quantities for CROISSANT drop from 42 to 31. |
-| **Bakery owner's line** | "Different branch, different numbers. Quito and Guayaquil don't behave the same on Sundays." |
-| **Data-testid anchors** | `data-testid="branch-selector"`, `data-testid="row-sku-CROISSANT"` |
+| Camera | Screen capture. URL: `/t/favorita/admin/retraining` (sub-nav label is **Model**). |
+| On-screen action | Click the *Model* tab. The `ModelInfoPanel` shows the predictor type ("LightGBM gradient-boosted trees · 7 quantile heads"), quantile-head badges, last-trained timestamp, training-data summary, and 13 plain-language feature chips. Below the panel: retrain history and the *Retrain now* button. |
+| VO | Section E of `script.md`. |
+| Caption (auto) | "LightGBM gradient-boosted trees — 7 quantile heads…" → "Retrain on the latest actuals; hot-swapped via a KV pointer with no downtime." |
+| Data-testid anchors | `admin-nav-retraining`, `model-info-panel`, `trigger-retrain-button`. |
 
 ---
 
-### Shot 5 — SKU detail: quantile chart + drivers (1:00–1:30)
+### Shot 4 — Dashboard bake plan + branch swap (~0:46–0:56) · scenario `dashboard`
 
 | Field | Detail |
 |---|---|
-| **Time** | 1:00–1:30 |
-| **Camera** | Screen capture. URL: `/t/favorita/sku/TRADITIONAL%20BAGUETTE?branch=brn_quito_centro`. |
-| **On-screen action** | QuantileChart fills the upper panel — a fan of 7 quantile bands (q0.1 to q0.9) with the newsvendor bake quantity marked. DriverBars below show top SHAP contributors: `lag_7`, `rolling_mean_7`, `dow`. Cursor hovers over the q0.7 band. Then clicks "Ask Gemma why →" link in the top-right. |
-| **Bakery owner's line** | "The chart shows me the range of possible demand. The bars show me why the model picked that number — lag 7 means last week's sales are the strongest signal. Then I click to ask it in plain language." |
-| **Data-testid anchors** | *(QuantileChart and DriverBars have no testid; anchor on the link)* — `a[href*="/chat"][href*="prefill"]` |
+| Camera | Screen capture. URL: `/t/favorita/dashboard?branch=…`. |
+| On-screen action | Click back to *Dashboard*. The custom branch picker (`branch-selector` button + listbox menu) is opened, *Quito Centro* selected. Bake plan loads. Picker is reopened, *Guayaquil Urdesa* selected — same model, different quantities. |
+| VO | Section F of `script.md`. |
+| Caption (auto) | "Today's bake plan…" → "Guayaquil Urdesa — different demand shape entirely." |
+| Data-testid anchors | `nav-dashboard`, `branch-selector`, `branch-selector-menu`, `row-sku-…`. |
 
 ---
 
-### Shot 6 — Chat: SSE stream + tool-call answer (1:30–2:10)
+### Shot 5 — SKU detail (~0:56–1:02) · scenario `sku-detail`
 
 | Field | Detail |
 |---|---|
-| **Time** | 1:30–2:10 |
-| **Camera** | Screen capture. URL: `/t/favorita/chat?branch=brn_quito_centro&prefill=...`. |
-| **On-screen action** | Prefilled question appears in the input: "Ask Gemma why TRADITIONAL BAGUETTE is forecast 135 for tomorrow." User clicks send. SSE stream begins — assistant message appears token by token. A tool-call indicator flashes briefly ("→ forecast"). Answer arrives: "Bake 135. The dominant driver is last Tuesday's sale of 141 units — lag_7 is pulling the forecast up. Rolling 7-day average agrees at 138." |
-| **Bakery owner's line** | "It calls the forecaster, reads the SHAP values, and writes me a sentence I can actually use. That's Gemma 4 doing the talking — the numbers come from the model, not the language model." |
-| **Data-testid anchors** | `data-testid="prompt-input"`, `data-testid="prompt-submit"`, `data-testid="message-bubble-assistant"` |
+| Camera | Screen capture. URL: `/t/favorita/sku/TRADITIONAL%20BAGUETTE?branch=…`. |
+| On-screen action | Click into *TRADITIONAL BAGUETTE*. The page reveals: collapsible *How to read this page* primer; four stat tiles (Recommended bake, Median demand, Band width, Forecast accuracy) each with a plain-language hint and an "i" tooltip; a tall gradient quantile band with "unlikely / most likely" inline labels and a dashed bake reference line; a friendly DriverBars chart with centered axis ("Pulls down ← → Pulls up") and plain-language feature labels ("Last week, same day", "Past-week average", …). |
+| VO | Section G of `script.md`. |
+| Caption (auto) | "Quantile band shows where demand is likely to land; drivers explain why." |
+| Data-testid anchors | `row-sku-TRADITIONAL BAGUETTE` (anchor link), `ask-gemma-why` (visible button in top-right). |
 
 ---
 
-### Shot 7 — Display case: photo → counts → markdown suggestions (2:10–2:30)
+### Shot 6 — Ask Gemma 4 (~1:02–1:54) · scenario `chat`
 
 | Field | Detail |
 |---|---|
-| **Time** | 2:10–2:30 |
-| **Camera** | Screen capture. URL: `/t/favorita/display-case?branch=brn_quito_centro`. Cut in bakery B-roll (2 seconds): owner holds phone over display case, half-empty tray of croissants. Back to screen. |
-| **On-screen action** | PhotoUpload component visible. Owner uploads the display-case photo. Spinner. CountsTable renders: CROISSANT 22, PAIN AU CHOCOLAT 14, TRADITIONAL BAGUETTE 7. MarkdownList appears below: CROISSANT −30%, PAIN AU CHOCOLAT −30%. |
-| **Bakery owner's line** | "At 5pm I take one photo. It counts what's left. Then it tells me what to mark down and by how much." |
-| **Data-testid anchors** | `data-testid="photo-upload-input"`, `data-testid="photo-upload-submit"`, `data-testid="counts-table"`, `data-testid="markdown-list"` |
+| Camera | Screen capture. URL: `/t/favorita/chat?branch=…&prefill=…`. |
+| On-screen action | Click *Ask Gemma why →*. Prefilled question lands as a user bubble. A friendly tool trace block appears: chips for `forecast_point` (Bake / Median / Low / High) and a horizontal-bar chart for `explain_drivers`. A `turn-status` indicator shows Gemma planning. After ~30–50s, the assistant message streams in token by token. |
+| VO | Section H of `script.md`. Pace the VO; let the trace appear and the answer stream in. |
+| Caption (auto) | "Ask Gemma why" → "Gemma plans tool calls" → "Gemma grounds answer in tool results." |
+| Data-testid anchors | `ask-gemma-why`, `message-bubble-user`, `turn-status`, `message-bubble-assistant`. |
 
 ---
 
-### Shot 8 — Close out day + retrain history (2:30–2:50)
+### Shot 7 — Display case (~1:54–2:03) · B-roll + scenario `display-case`
 
 | Field | Detail |
 |---|---|
-| **Time** | 2:30–2:50 |
-| **Camera** | Screen capture. Dashboard URL. CloseOutDayTrigger button visible. Then cut to admin retrain history panel. |
-| **On-screen action** | Owner clicks "Close out day" button. Confirmation dialog. Confirms. Toast: "Actuals recorded." Cut to admin panel showing retrain log — two rows, each with a date and WAPE improvement: "2026-04-12 → WAPE 0.29", "2026-04-19 → WAPE 0.25". |
-| **Bakery owner's line** | "Every day I close out, the actual sales go in. Once a week it retrains. That second row — that's after two weeks of my data. The error dropped four points." |
-| **Data-testid anchors** | *(CloseOutDayDialog)* — `data-testid="close-out-confirm"` if present; admin retrain table rows |
+| Camera | `docs/demo/broll/shot7b-display-case.mp4` cuts in over the navigation. Owner holds phone over half-empty tray. |
+| On-screen action | Click *Display case* in nav. The photo-upload surface is visible. The video does not actually upload a photo — the surface itself is the demo beat. |
+| Owner / VO | Section I of `script.md`: owner sync-sound line + a brief VO over the upload surface. |
+| Caption (auto) | "Take one photo of the shelf — Gemma vision counts units, suggests markdowns." |
+| Data-testid anchors | `nav-display-case`, `photo-upload-input`. |
 
 ---
 
-### Shot 9 — Close (2:50–3:00)
+### Shot 8 — Sign out (~2:03–2:08) · scenario `signout`
 
 | Field | Detail |
 |---|---|
-| **Time** | 2:50–3:00 |
-| **Camera** | Bakery B-roll. Owner at counter, morning light. Warm, not performed. |
-| **On-screen action** | No screen. Owner looks at camera. |
-| **Bakery owner's line** | "By month two, the model knows my bakery better than I do. I just bake what it tells me." |
-| **Data-testid anchors** | — (no UI) |
+| Camera | Screen capture. Returns to dashboard, then signs out. |
+| On-screen action | Click *Dashboard* in nav (returns to bake plan briefly), then click the user menu's *Sign out* item. Redirect to `/signin`. |
+| VO | Section J of `script.md`. |
+| Caption (auto) | "Session signed out." → "Refresh-token tombstones + JWKS rotation on the next line." |
+| Data-testid anchors | `nav-dashboard`, `user-menu-signout`, `signin-slug` (post-redirect). |
 
 ---
 
-## Recording notes
+### Shot 9 — Close (~2:08–2:18) · B-roll
 
-- **Screen capture:** 1920×1080 px, 30fps. QuickTime (macOS) or OBS. Use the seeded `favorita` tenant (`POST /api/admin/seed-demo`) before recording.
-- **B-roll:** 1080p, hand-held is fine — authentic matters more than polished. Target shots: counter with trays, phone over display case, owner reviewing phone screen.
-- **Cuts:** at natural beats between shots. No hard flash transitions; a simple cut or a half-second crossfade is fine.
-- **Music:** optional, low-attention instrumental underneath the screen-capture sections only. Suggested: CC0 from [freemusicarchive.org](https://freemusicarchive.org) (search "acoustic morning" or "lo-fi bakery"). Fade out under Shot 9.
-- **Voiceover vs. sync-sound:** bakery owner's lines in Shots 1, 9, and the B-roll cut in Shot 7 are sync-sound (record on-location). Owner lines during screen captures (Shots 3–8) are sync-sound recorded separately and dubbed over the screen; see `script.md` for exact wording and timecodes.
-- **Browser prep:** sign in, select branch, open DevTools Network tab → filter "WS / SSE" to verify streaming is live before recording the chat shot. Close DevTools before rolling.
-- **Demo seed credentials:** `demo@bakerysense.app / Demo2026DemoDemo`, tenant slug `favorita`. Verify the branch selector shows all 5 branches before recording.
+| Field | Detail |
+|---|---|
+| Camera | `docs/demo/broll/shot9-close.mp4`. Owner at counter, warm light. |
+| On-screen action | No app UI. |
+| Owner line | "By month two, the model knows my bakery better than I do." |
+
+---
+
+## Production notes
+
+- **Resolution:** screen captures are 1440×900 (Playwright viewport). The Remotion composition is also 1440×900 and renders at 30fps. The published artifact at `docs/demo/demo-final.mp4` is the canonical output (~9.7 MB at CRF 28).
+- **B-roll:** three AI-generated clips at `docs/demo/broll/*.mp4` — `shot1-cold-open.mp4` (10s), `shot7b-display-case.mp4` (5s), `shot9-close.mp4` (10s). The Remotion composition embeds these directly via `<OffthreadVideo>` — there is no ffmpeg post-stitch step.
+- **Captions:** auto-rendered by Remotion from `bakerysense-web/e2e-demo/captions.json`. They appear at the bottom of the frame, distinct from the spoken VO.
+- **VO recording:** see `script.md` for line-by-line copy. For TTS narration use a calm, grounded voice (e.g. Qwen TTS's `Cherry` or `Ethan`); duck the captions' visual prominence is unaffected because captions are visual, not audio.
+- **Screen tempo:** the `chat` scenario is the long pole because Gemma is actually planning tool calls and streaming a grounded answer. Don't speed it up — the latency is part of the proof.
+- **Re-recording:** `bash bakerysense-web/e2e-demo/build.sh` re-runs the full pipeline (record → compose → render → publish to `docs/demo/demo-final.mp4`).
+- **Demo seed:** seeded `favorita` tenant via `POST /api/admin/seed-demo` (HMAC-signed). Credentials: `demo@bakerysense.app / Demo2026DemoDemo`. Verify the branch selector shows all 5 branches before recording.

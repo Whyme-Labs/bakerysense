@@ -1,44 +1,102 @@
-# BakerySense — 3-Minute Demo Script
+# BakerySense — Demo Script
 
-Aligned to `storyboard.md`. Target: ~450 words at 150 words/minute over 3:00.
+Aligned to `storyboard.md` and the actual rendered video at `docs/demo/demo-final.mp4` (~108s of screen capture wrapped by ~25s of B-roll = ~2:13 total). Captions on-screen are in `bakerysense-web/e2e-demo/captions.json`; the lines below are spoken VO that complements (not duplicates) those captions.
 
 Two speaker types:
-- `[OWNER ON CAM]` — bakery owner, sync-sound, recorded on-location.
-- `[VO]` — voiceover narration, recorded in a quiet room, dubbed over screen captures.
+- `[OWNER ON CAM]` — bakery owner, sync-sound, recorded on-location with the B-roll clips.
+- `[VO]` — narration over the screen-capture sections, recorded in a quiet room.
 
-Pauses marked as `[BEAT]`.
-
----
-
-| Time | Line |
-|---|---|
-| **0:00–0:15** | **[OWNER ON CAM]** "Yesterday I threw out 40 croissants. The day before, I ran out by noon. I needed something that would just tell me how many to bake." |
-| **0:15–0:25** | **[VO]** "This is BakerySense. It combines a LightGBM demand forecaster with Gemma 4, Google's open-source multimodal model. Log in with your bakery's tenant ID —" |
-| **0:25–0:30** | **[BEAT]** *(signin form submits, dashboard loads)* |
-| **0:30–0:38** | **[VO]** "— and your bake plan is waiting. Three products, three quantities. The colored badge next to each one is the forecast error over the last seven days." |
-| **0:38–0:48** | **[OWNER ON CAM]** "That amber number — that's the forecast error. Green means I've given it enough history to trust it." |
-| **0:48–1:00** | **[VO]** "Switch branches. Quito Centro bakes 42 croissants tomorrow. Guayaquil Urdesa bakes 31. Same model, same day — different sales patterns, different answers." |
-| **1:00–1:15** | **[VO]** "Click into a product and you see the full quantile band — demand anywhere from 117 to 152, with the newsvendor quantity pinned at 135." |
-| **1:15–1:30** | **[OWNER ON CAM]** "The bars show me why the model picked that number — lag 7 means last week's sales are the strongest signal. Then I click to ask it in plain language." |
-| **1:30–1:40** | **[VO]** "The prefilled question goes to Gemma 4. Watch the screen." |
-| **1:40–1:55** | **[BEAT]** *(SSE stream fills in the assistant reply, token by token)* |
-| **1:55–2:10** | **[OWNER ON CAM]** "It calls the forecaster, reads the SHAP values, and writes me a sentence I can actually use. That's Gemma 4 doing the talking — the numbers come from the model, not the language model." |
-| **2:10–2:15** | **[VO]** "At 5pm, go to the display-case page." |
-| **2:15–2:17** | **[BEAT]** *(2-second B-roll cut: owner holds phone over display tray)* |
-| **2:17–2:30** | **[OWNER ON CAM]** "At 5pm I take one photo. It counts what's left. Then it tells me what to mark down and by how much." |
-| **2:30–2:40** | **[VO]** "Closing out the day takes one click. The actual sales go in. Once a week the forecaster retrains on your data." |
-| **2:40–2:50** | **[OWNER ON CAM]** "Every day I close out, the actual sales go in. Once a week it retrains. That second row — that's after two weeks of my data. The error dropped four points." |
-| **2:50–3:00** | **[OWNER ON CAM]** "By month two, the model knows my bakery better than I do. I just bake what it tells me." |
+Pauses marked `[BEAT]`. Timecodes are approximate — the screen capture's tempo is fixed by the recording, so trim VO to fit, do not stretch the visuals.
 
 ---
 
-## Word count note
+## Section A — Cold open (B-roll, ~0:00–0:10)
 
-Spoken prose above (excluding stage directions and timecodes): approximately 315 words. At 150 wpm over 3:00 (450 word capacity), the remaining ~135 words are absorbed by beats, the SSE streaming pause (0:15), and natural pacing in the B-roll cuts. Do not add filler — the silence is intentional.
+| Time | Speaker | Line |
+|---|---|---|
+| 0:00–0:10 | **[OWNER ON CAM]** | "Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake." |
+
+## Section B — Brand intro (~0:10–0:13)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 0:10–0:13 | **[VO]** | "BakerySense — an offline-first decision copilot, powered by Gemma 4." |
+
+## Section C — Landing & sign-in (scenario 1, ~0:13–0:26)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 0:13–0:18 | **[VO]** | "Sign in with the bakery's tenant slug, email, and password." |
+| 0:18–0:26 | **[VO]** | "We use ES256 JWT and Argon2id — but that's plumbing. The interesting part is what comes next." |
+
+## Section D — Data BakerySense loaded (scenario 2, ~0:26–0:36)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 0:26–0:33 | **[VO]** | "Here's the sales history we loaded — per SKU, per branch, per day. The forecaster trains on this." |
+| 0:33–0:36 | **[VO]** | "No black box; the operator can see exactly what the model has seen." |
+
+## Section E — Predictor & model page (scenario 3, ~0:36–0:46)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 0:36–0:42 | **[VO]** | "The predictor itself: LightGBM gradient-boosted trees, seven quantile heads, thirteen plain-language features." |
+| 0:42–0:46 | **[VO]** | "It runs in pure TypeScript inside a Cloudflare Worker — no Python at request time. Retrain on actuals, hot-swapped via a KV pointer." |
+
+## Section F — Dashboard bake plan (scenario 4, ~0:46–0:56)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 0:46–0:51 | **[VO]** | "Today's bake plan. Each row is a SKU; the quantity is newsvendor-picked from the quantile forecast." |
+| 0:51–0:56 | **[VO]** | "Switch branches — same model, completely different demand shape. The numbers come from the data, not from intuition." |
+
+## Section G — SKU detail (scenario 5, ~0:56–1:02)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 0:56–1:02 | **[VO]** | "Open a SKU. The quantile band shows where demand is likely to land; the driver bars show why." |
+
+## Section H — Ask Gemma 4 (scenario 6, ~1:02–1:54)
+
+This is the longest single section — Gemma takes time to plan tool calls and stream a grounded answer. Pace the VO; don't rush.
+
+| Time | Speaker | Line |
+|---|---|---|
+| 1:02–1:08 | **[VO]** | "Click *Ask Gemma why*. The question is prefilled and sent to Gemma 4." |
+| 1:08–1:15 | **[BEAT]** | *(Gemma plans tool calls — friendly trace appears: chips for forecast, bars for explain.)* |
+| 1:15–1:25 | **[VO]** | "It calls the forecaster, reads the SHAP-style drivers, and grounds its answer in the numbers." |
+| 1:25–1:54 | **[BEAT]** | *(Streaming answer fills in token by token — let it breathe.)* |
+
+## Section I — Display case (B-roll + scenario 7, ~1:54–2:03)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 1:54–2:00 | **[OWNER ON CAM]** | "At 5pm I take one photo. It counts what is left." |
+| 2:00–2:03 | **[VO]** | "The same Gemma 4 vision-counts the display case and suggests markdowns." |
+
+## Section J — Sign out (scenario 8, ~2:03–2:08)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 2:03–2:08 | **[VO]** | "Sign out. Refresh-token tombstones and JWKS rotation handle the rest." |
+
+## Section K — Close (B-roll, ~2:08–2:18)
+
+| Time | Speaker | Line |
+|---|---|---|
+| 2:08–2:18 | **[OWNER ON CAM]** | "By month two, the model knows my bakery better than I do." |
+
+---
+
+## Word count
+
+Spoken prose above (excluding stage directions and timecodes): approximately 290 words across ~2:18 of speech-bearing time. Comfortable for ~150 wpm. Beats absorb the rest.
 
 ## Production notes
 
-- The owner's on-cam lines are short by design. Do not add adjectives to fill time. If a line runs short, hold on the speaker's face for a beat rather than adding words.
-- VO lines are tight. Record them at a natural conversational pace, not broadcast speed. If a VO line runs over its timecode by more than two seconds, cut one clause.
-- The phrase "Gemma 4" appears at 1:30 (VO) and 1:55 (owner on cam). Both are essential — do not cut either.
-- The word "LightGBM" at 0:15 is fine to speak; it is a named thing, not jargon. If the owner stumbles on it in ADR, substitute "the demand model."
+- The owner's sync-sound lines (Sections A, I, K) carry the emotional weight; the VO sections (B–H, J) carry the technical narrative. Don't reverse them.
+- Section H is the longest section because Gemma is genuinely thinking. Don't fill the silence with extra VO — let the streaming animation breathe. The viewer needs to *see* the tool trace appear and the answer stream in.
+- "Gemma 4" appears in Sections B, E, H, I. Keep all of them — the LLM is the headline.
+- "LightGBM" in Section E is a named thing, not jargon. Don't substitute "the demand model"; the named term lands harder.
+- Trim VO to fit, never stretch. The screen capture tempo is fixed by the recording.
+- For TTS narration: any voice with a calm, grounded delivery (not broadcast-energetic). Suggested model: `qwen-tts` (DashScope) or equivalent — see `e2e-demo/voiceover/README.md` if present.
