@@ -1,13 +1,13 @@
 [
   {
     "id": "A_cold_open",
-    "voice": "Ryan",
-    "speaker": "owner",
+    "voice": "Aiden",
+    "speaker": "vo",
     "scenario_anchor": "broll-shot1",
-    "text": "Yesterday I threw out forty croissants. I needed something that would just tell me how many to bake.",
+    "text": "Independent bakeries throw out 30 to 40 percent of what they make. The waste is uncertainty, not ignorance.",
     "audio_file": "A_cold_open.wav",
-    "duration_ms": 6880,
-    "byte_size": 330284
+    "duration_ms": 8320,
+    "byte_size": 399404
   },
   {
     "id": "B_brand_intro",
@@ -81,13 +81,13 @@
   },
   {
     "id": "I_display_case_owner",
-    "voice": "Ryan",
-    "speaker": "owner",
+    "voice": "Aiden",
+    "speaker": "vo",
     "scenario_anchor": "broll-shot7b",
-    "text": "At five PM I take one photo. It counts what is left.",
+    "text": "At end of day, one photo is enough. Gemma 4 counts what is left.",
     "audio_file": "I_display_case_owner.wav",
-    "duration_ms": 5600,
-    "byte_size": 268844
+    "duration_ms": 3360,
+    "byte_size": 161324
   },
   {
     "id": "I2_display_case_vo",
@@ -111,12 +111,12 @@
   },
   {
     "id": "K_close",
-    "voice": "Ryan",
-    "speaker": "owner",
+    "voice": "Aiden",
+    "speaker": "vo",
     "scenario_anchor": "broll-shot9",
-    "text": "By month two, the model knows my bakery better than I do.",
+    "text": "Within two months, the model learns the bakery better than the baker remembers it.",
     "audio_file": "K_close.wav",
-    "duration_ms": 4400,
-    "byte_size": 211244
+    "duration_ms": 4320,
+    "byte_size": 207404
   }
 ]

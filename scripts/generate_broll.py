@@ -34,13 +34,14 @@ STORYBOARD: list[dict[str, Any]] = [
         "duration": 10,
         "aspect_ratio": "16:9",
         "prompt": (
-            "Small artisan French bakery at dawn, warm morning light streaming through "
-            "the front window. A middle-aged female baker in a flour-dusted white apron "
-            "stands behind a glass display case filled with golden croissants and crusty "
-            "baguettes. She faces the camera with a calm, thoughtful expression, as if "
-            "speaking honestly to a friend. Handheld camera with subtle natural motion, "
-            "cinematic, shallow depth of field, soft film grain, warm honey-amber color "
-            "palette. Documentary style, authentic, not performed."
+            "Quiet morning inside a small artisan French bakery. Slow camera pan across a "
+            "wooden counter dusted with flour. Weathered hands in a flour-dusted white "
+            "apron arrange golden croissants on a wire cooling rack, then slide a wooden "
+            "tray of fresh crusty baguettes onto the back shelf. Warm honey-amber morning "
+            "light streams through the front window onto a glass display case filled with "
+            "viennoiserie. Shallow depth of field, soft film grain, subtle handheld camera "
+            "motion. No faces visible — only hands, counter, and baked goods. No speaking, "
+            "no talking. Documentary style, contemplative, unhurried."
         ),
     },
     {
@@ -61,13 +62,13 @@ STORYBOARD: list[dict[str, Any]] = [
         "duration": 10,
         "aspect_ratio": "16:9",
         "prompt": (
-            "Medium shot of a middle-aged female baker in a flour-dusted white apron "
-            "standing at the counter of a small artisan French bakery. Early morning "
-            "light, warm amber and honey tones. She looks directly at the camera with a "
-            "warm, confident, settled smile — the quiet satisfaction of someone who has "
-            "solved a daily problem. Handheld camera with subtle natural motion. "
-            "Cinematic, soft-focus background of shelves with fresh baked goods, film "
-            "grain, documentary style, not performed."
+            "End of day inside the same small artisan French bakery. Warm low golden "
+            "light, soft amber tones. Weathered hands in a flour-dusted white apron close "
+            "the glass display case latch, then wipe flour off the wooden counter with a "
+            "linen cloth, then set down a small leather notebook beside a single remaining "
+            "croissant. Slow handheld camera, shallow depth of field, soft film grain. No "
+            "faces visible — only hands, counter, and the dim bakery interior. No "
+            "speaking, no talking. Documentary style, quiet, reflective."
         ),
     },
 ]

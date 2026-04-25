@@ -6,10 +6,10 @@
   "sections": [
     {
       "id": "A_cold_open",
-      "voice": "Ryan",
-      "speaker": "owner",
+      "voice": "Aiden",
+      "speaker": "vo",
       "scenario_anchor": "broll-shot1",
-      "text": "Yesterday I threw out forty croissants. I needed something that would just tell me how many to bake."
+      "text": "Independent bakeries throw out 30 to 40 percent of what they make. The waste is uncertainty, not ignorance."
     },
     {
       "id": "B_brand_intro",
@@ -62,10 +62,10 @@
     },
     {
       "id": "I_display_case_owner",
-      "voice": "Ryan",
-      "speaker": "owner",
+      "voice": "Aiden",
+      "speaker": "vo",
       "scenario_anchor": "broll-shot7b",
-      "text": "At five PM I take one photo. It counts what is left."
+      "text": "At end of day, one photo is enough. Gemma 4 counts what is left."
     },
     {
       "id": "I2_display_case_vo",
@@ -83,10 +83,10 @@
     },
     {
       "id": "K_close",
-      "voice": "Ryan",
-      "speaker": "owner",
+      "voice": "Aiden",
+      "speaker": "vo",
       "scenario_anchor": "broll-shot9",
-      "text": "By month two, the model knows my bakery better than I do."
+      "text": "Within two months, the model learns the bakery better than the baker remembers it."
     }
   ]
 }

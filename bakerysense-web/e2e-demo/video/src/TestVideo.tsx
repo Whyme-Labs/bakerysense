@@ -311,7 +311,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
       <BRollShot
         src="shot1-cold-open.mp4"
         durationFrames={broll1Frames}
-        caption="Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake."
+        caption="Independent bakeries throw out 30–40% of what they make."
         attribution="Generated · alibaba/wan-2.6"
       />
       <VoiceoverFor anchor="broll-shot1" />
@@ -477,7 +477,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
           <BRollShot
             src="shot7b-display-case.mp4"
             durationFrames={broll7bFrames}
-            caption="At 5pm I take one photo. It counts what's left."
+            caption="One photo. Gemma 4 counts what's left."
             attribution="Generated · alibaba/wan-2.6"
           />
           <VoiceoverFor anchor="broll-shot7b" />
@@ -494,7 +494,7 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
       <BRollShot
         src="shot9-close.mp4"
         durationFrames={broll9Frames}
-        caption="By month two, the model knows my bakery better than I do."
+        caption="Within two months, it learns the bakery better than the baker."
         attribution="Generated · alibaba/wan-2.6"
       />
       <VoiceoverFor anchor="broll-shot9" />

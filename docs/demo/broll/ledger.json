@@ -1,7 +1,7 @@
 [
   {
     "id": "shot1-cold-open",
-    "job_id": "PN0xbrScnmiQttnnmkWa",
+    "job_id": "QzrA2mvOawZAajzok9xD",
     "duration_s": 10,
     "cost_usd": 1.2,
     "cumulative_usd": 1.2,
@@ -9,7 +9,7 @@
   },
   {
     "id": "shot7b-display-case",
-    "job_id": "VyKaa2jQ3l43fsvYYlWe",
+    "job_id": "zETCPgrWDlrnLhooQ2dS",
     "duration_s": 5,
     "cost_usd": 0.6,
     "cumulative_usd": 1.7999999999999998,
@@ -17,7 +17,7 @@
   },
   {
     "id": "shot9-close",
-    "job_id": "ACuH5T0x8RhTP5BnVeXF",
+    "job_id": "v37McFVQLTlNHcC4GBw2",
     "duration_s": 10,
     "cost_usd": 1.2,
     "cumulative_usd": 3.0,

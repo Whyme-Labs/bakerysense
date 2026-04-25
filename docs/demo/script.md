@@ -2,9 +2,8 @@
 
 Aligned to `storyboard.md` and the actual rendered video at `docs/demo/demo-final.mp4` (~108s of screen capture wrapped by ~25s of B-roll = ~2:13 total). Captions on-screen are in `bakerysense-web/e2e-demo/captions.json`; the lines below are spoken VO that complements (not duplicates) those captions.
 
-Two speaker types:
-- `[OWNER ON CAM]` — bakery owner, sync-sound, recorded on-location with the B-roll clips.
-- `[VO]` — narration over the screen-capture sections, recorded in a quiet room.
+Single speaker model:
+- `[VO]` — third-person narration in `Aiden`'s voice (Qwen3-TTS-CustomVoice). Played over both screen captures and B-roll. The B-roll is mood footage — no faces, no lip-sync expectation.
 
 Pauses marked `[BEAT]`. Timecodes are approximate — the screen capture's tempo is fixed by the recording, so trim VO to fit, do not stretch the visuals.
 
@@ -14,7 +13,7 @@ Pauses marked `[BEAT]`. Timecodes are approximate — the screen capture's tempo
 
 | Time | Speaker | Line |
 |---|---|---|
-| 0:00–0:10 | **[OWNER ON CAM]** | "Yesterday I threw out 40 croissants. I needed something that would just tell me how many to bake." |
+| 0:00–0:10 | **[VO]** | "Independent bakeries throw out 30 to 40 percent of what they make. The waste is uncertainty, not ignorance." |
 
 ## Section B — Brand intro (~0:10–0:13)
 
@@ -71,8 +70,8 @@ This is the longest single section — Gemma takes time to plan tool calls and s
 
 | Time | Speaker | Line |
 |---|---|---|
-| 1:54–2:00 | **[OWNER ON CAM]** | "At 5pm I take one photo. It counts what is left." |
-| 2:00–2:03 | **[VO]** | "The same Gemma 4 vision-counts the display case and suggests markdowns." |
+| 1:54–2:00 | **[VO]** | "At end of day, one photo is enough. Gemma 4 counts what is left." |
+| 2:00–2:03 | **[VO]** | "Gemma 4 counts the display case and suggests markdowns." |
 
 ## Section J — Sign out (scenario 8, ~2:03–2:08)
 
@@ -84,7 +83,7 @@ This is the longest single section — Gemma takes time to plan tool calls and s
 
 | Time | Speaker | Line |
 |---|---|---|
-| 2:08–2:18 | **[OWNER ON CAM]** | "By month two, the model knows my bakery better than I do." |
+| 2:08–2:18 | **[VO]** | "Within two months, the model learns the bakery better than the baker remembers it." |
 
 ---
 
