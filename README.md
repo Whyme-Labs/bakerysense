@@ -9,7 +9,7 @@ Offline-first production decision copilot for bakeries. Submission for the [Gemm
 ## Live demo
 
 - **App:** <https://bakerysense-web.swmengappdev.workers.dev>
-- **Video:** _(to be recorded — storyboard in [`docs/demo/storyboard.md`](docs/demo/storyboard.md))_
+- **Video:** [`docs/demo/demo-final.mp4`](docs/demo/demo-final.mp4) (~97s, storyboard in [`docs/demo/storyboard.md`](docs/demo/storyboard.md))
 - **Writeup:** [`docs/demo/writeup.md`](docs/demo/writeup.md) (≤1500 words)
 
 Demo credentials:
