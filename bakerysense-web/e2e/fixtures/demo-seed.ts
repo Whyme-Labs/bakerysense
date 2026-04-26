@@ -18,6 +18,14 @@ const SEEDED = { done: false };
 export const test = base.extend<object, { seeded: void }>({
   seeded: [async ({}, use) => {
     if (!SEEDED.done) {
+      // SKIP_SEED=1 lets the suite run against an already-seeded environment
+      // (e.g. the live deploy where OPS_ROTATE_SECRET is a Wrangler secret
+      // that local Playwright can't replicate without leaking it).
+      if (process.env.SKIP_SEED === "1") {
+        SEEDED.done = true;
+        await use();
+        return;
+      }
       const secret = process.env.OPS_ROTATE_SECRET ?? "test-ops-secret";
       const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:8787";
       const body = {};
