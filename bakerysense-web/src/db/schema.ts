@@ -52,10 +52,37 @@ export const branches = sqliteTable(
 		city: text("city"),
 		cluster: text("cluster"),
 		type: text("type"),
+		// V2 ingestion: lat/lon/timezone unlocks weather + festival joins.
+		// Nullable so existing branches keep working; the cron and the feature
+		// pipeline both no-op when these are absent.
+		lat: text("lat"),                  // SQLite stores as TEXT; parsed as float at use site
+		lon: text("lon"),
+		timezone: text("timezone"),        // IANA tz, e.g. "Europe/Paris"
+		locale: text("locale"),            // BCP-47 region for festival lookup, e.g. "fr-FR" or "en-SG"
 		createdAt: integer("created_at").notNull(),
 	},
 	(t) => ({
 		tenantNameIdx: uniqueIndex("branches_tenant_name_idx").on(t.tenantId, t.name),
+	}),
+);
+
+export const branchWeatherDaily = sqliteTable(
+	"branch_weather_daily",
+	{
+		branchId: text("branch_id").notNull().references(() => branches.id),
+		date: text("date").notNull(),                  // ISO YYYY-MM-DD
+		temperatureMeanC: text("temperature_mean_c"),  // °C, daily mean
+		precipitationMm: text("precipitation_mm"),    // mm
+		humidityMeanPct: text("humidity_mean_pct"),
+		uvIndexMax: text("uv_index_max"),
+		windSpeedMaxKmh: text("wind_speed_max_kmh"),
+		isStorm: integer("is_storm").default(0),       // 0 / 1 — storm warning hit
+		source: text("source").notNull(),              // "open_meteo_archive" | "open_meteo_forecast"
+		fetchedAt: integer("fetched_at").notNull(),
+	},
+	(t) => ({
+		pk: primaryKey({ columns: [t.branchId, t.date] }),
+		dateIdx: index("branch_weather_date_idx").on(t.date),
 	}),
 );
 
