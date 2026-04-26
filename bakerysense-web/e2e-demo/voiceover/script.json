@@ -23,7 +23,7 @@
       "voice": "Aiden",
       "speaker": "vo",
       "scenario_anchor": "landing",
-      "text": "Sign in with the bakery's tenant slug, email, and password. We use ES256 JWT and Argon2id, but that's plumbing. The interesting part is what comes next."
+      "text": "Sign in with the bakery's tenant slug, email, and password. The interesting part is what comes next."
     },
     {
       "id": "D_data_preview",
@@ -58,7 +58,7 @@
       "voice": "Aiden",
       "speaker": "vo",
       "scenario_anchor": "chat",
-      "text": "Click Ask Gemma why. The question is prefilled and sent to Gemma 4. It calls the forecaster, reads the SHAP-style drivers, and grounds its answer in the numbers."
+      "text": "Click Ask Gemma why. The question is prefilled and sent to Gemma 4. It calls the forecaster, reads the top drivers, and grounds the answer in the numbers."
     },
     {
       "id": "I_display_case_owner",
@@ -79,7 +79,7 @@
       "voice": "Aiden",
       "speaker": "vo",
       "scenario_anchor": "signout",
-      "text": "Sign out. Refresh-token tombstones and JWKS rotation handle the rest."
+      "text": "Sign out. The session ends, the tokens revoke, and the page returns to sign-in."
     },
     {
       "id": "K_close",
