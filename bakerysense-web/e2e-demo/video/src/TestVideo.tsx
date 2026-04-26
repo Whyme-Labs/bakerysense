@@ -25,9 +25,12 @@ interface VoiceoverEntry {
 
 // Index voiceover sections by their anchor for O(1) lookup while building
 // the sequence list. Empty manifest → no <Audio> emitted, video stays silent.
+// A single entry with scenario_anchor="global" plays the whole narration as
+// one continuous track at composition root (better prosody continuity).
 const voiceoverByAnchor: Map<string, VoiceoverEntry> = new Map(
   (voiceoverManifest as VoiceoverEntry[]).map((entry) => [entry.scenario_anchor, entry]),
 );
+const globalVoiceover: VoiceoverEntry | null = voiceoverByAnchor.get("global") ?? null;
 
 const VO_TAIL_MS = 500;
 
@@ -42,6 +45,9 @@ export function audioPaddedFrames(anchor: string, baseFrames: number, fps: numbe
 }
 
 function VoiceoverFor({ anchor }: { anchor: string }): React.ReactElement | null {
+  // When a global audio track is present, suppress per-anchor mounts to avoid
+  // double-narration. The global track is rendered once at composition root.
+  if (globalVoiceover) return null;
   const entry = voiceoverByAnchor.get(anchor);
   if (!entry) return null;
   return (
@@ -508,5 +514,12 @@ export const TestVideo: React.FC<TestVideoProps> = ({ timingData }) => {
     </Sequence>
   );
 
-  return <AbsoluteFill>{sequences}</AbsoluteFill>;
+  return (
+    <AbsoluteFill>
+      {sequences}
+      {globalVoiceover && (
+        <Audio src={staticFile(`voiceover/${globalVoiceover.audio_file}`)} volume={0.95} />
+      )}
+    </AbsoluteFill>
+  );
 };
