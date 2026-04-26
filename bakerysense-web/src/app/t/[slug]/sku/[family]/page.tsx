@@ -70,7 +70,14 @@ export default async function SkuDetailPage({ params, searchParams }: PageProps)
     fetchJson(`/api/actuals/metrics?branch=${encodeURIComponent(branch)}&window=14&family=${familyPath}`, cookie).catch(() => null),
   ]);
 
-  const forecast = forecastRaw as { bake_quantity: number; quantiles: Record<string, number> };
+  const forecast = forecastRaw as {
+    bake_quantity: number;
+    quantiles: Record<string, number>;
+    stage?: "no_data" | "cold" | "warm" | "mature";
+    actuals_count?: number;
+    confidence_banner?: string;
+    forecaster?: string;
+  };
   const explain = explainRaw as { drivers?: Array<{ feature: string; contribution: number }> } | null;
   const metrics = metricsRaw as { entries: Array<{ family: string; wape: number; sampleCount: number }> } | null;
 
@@ -105,6 +112,33 @@ export default async function SkuDetailPage({ params, searchParams }: PageProps)
         </a>
       </div>
       <DriftBanner currentWape={currentWape} baselineWape={0.25} sampleCount={sampleCount} slug={slug} />
+      {forecast.stage && forecast.stage !== "mature" && forecast.confidence_banner && (
+        <div
+          data-testid="stage-banner"
+          className={`mb-6 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            forecast.stage === "no_data" || forecast.stage === "cold"
+              ? "border-[oklch(0.85_0.10_70)] bg-[oklch(0.97_0.04_70)] text-[oklch(0.35_0.10_60)]"
+              : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--ink-muted)]"
+          }`}
+        >
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wider"
+            style={{
+              background: forecast.stage === "no_data" ? "oklch(0.7 0.14 60)" : forecast.stage === "cold" ? "oklch(0.78 0.13 70)" : "oklch(0.72 0.13 155)",
+              color: "white",
+            }}
+          >
+            {forecast.stage === "no_data" ? "Reference" : forecast.stage === "cold" ? "Cold start" : "Warming up"}
+          </span>
+          <div className="flex-1">
+            <p>{forecast.confidence_banner}</p>
+            {forecast.actuals_count != null && (
+              <p className="mt-1 text-xs opacity-80">
+                {forecast.actuals_count} actuals captured for this SKU · forecaster: <code className="font-mono">{forecast.forecaster ?? "—"}</code>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       <details className="mb-6 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--ink-muted)]">
         <summary className="cursor-pointer font-medium text-[var(--ink)]">How to read this page</summary>
         <ul className="mt-3 space-y-2 leading-relaxed">
