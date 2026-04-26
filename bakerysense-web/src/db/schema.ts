@@ -7,6 +7,10 @@ export const tenants = sqliteTable("tenants", {
 	vertical: text("vertical").notNull(),
 	plan: text("plan").notNull().default("free"),
 	createdAt: integer("created_at").notNull(),
+	// JSON array of feature IDs from src/lib/feature-registry.ts; NULL means
+	// "use V1_DEFAULT_AVAILABILITY". Populated at tenant onboarding from
+	// connector capability detection. See feature-registry.ts for layout.
+	featureAvailability: text("feature_availability"),
 });
 
 export const users = sqliteTable(

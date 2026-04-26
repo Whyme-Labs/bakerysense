@@ -1,3 +1,5 @@
+import { friendlyLabel } from "@/lib/feature-registry";
+
 interface Props {
   predictor: string;
   quantileHeads: string[];
@@ -10,27 +12,6 @@ interface Props {
   trainingFamilies: number;
   trainingBranches: number;
   trainingDateRange: { start: string; end: string } | null;
-}
-
-const FRIENDLY_FEATURE: Record<string, string> = {
-  lag_1: "Yesterday's sales",
-  lag_7: "Last week, same day",
-  lag_14: "Two weeks ago",
-  lag_28: "Four weeks ago",
-  rolling_mean_7: "Past-week average",
-  rolling_mean_28: "Past-month average",
-  dow: "Day of week",
-  is_weekend: "Weekend",
-  is_holiday: "Holiday",
-  month: "Month of year",
-  promo: "Promotion active",
-  price: "Price level",
-  family: "SKU family",
-};
-
-function friendly(name: string): string {
-  if (FRIENDLY_FEATURE[name]) return FRIENDLY_FEATURE[name];
-  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatTime(ms: number | null): string {
@@ -98,7 +79,7 @@ export function ModelInfoPanel(p: Props) {
                 title={f}
                 className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs text-[var(--ink-muted)]"
               >
-                {friendly(f)}
+                {friendlyLabel(f)}
               </span>
             ))}
           </div>

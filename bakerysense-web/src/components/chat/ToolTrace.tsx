@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { friendlyLabel } from "@/lib/feature-registry";
 
 interface Props {
   name: string;
@@ -18,27 +19,6 @@ function num(v: unknown): number | null {
 
 function str(v: unknown): string | null {
   return typeof v === "string" ? v : null;
-}
-
-const FRIENDLY_FEATURE: Record<string, string> = {
-  lag_1: "Yesterday's sales",
-  lag_7: "Last week, same day",
-  lag_14: "Two weeks ago",
-  lag_28: "Four weeks ago",
-  rolling_mean_7: "Past-week average",
-  rolling_mean_28: "Past-month average",
-  dow: "Day of week",
-  is_weekend: "Weekend",
-  is_holiday: "Holiday",
-  month: "Month of year",
-  promo: "Promotion active",
-  price: "Price level",
-  family: "SKU family",
-};
-
-function friendlyFeature(name: string): string {
-  if (FRIENDLY_FEATURE[name]) return FRIENDLY_FEATURE[name];
-  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function Chip({ label, value }: { label: string; value: React.ReactNode }) {
@@ -104,7 +84,7 @@ function DriversBody({ result }: { result: unknown }) {
           const negligible = Math.abs(contribution) < 0.01;
           return (
             <li key={i} className="grid grid-cols-[8rem_1fr_3rem] items-center gap-2 text-xs">
-              <span className="truncate text-[var(--ink)]" title={feature}>{friendlyFeature(feature)}</span>
+              <span className="truncate text-[var(--ink)]" title={feature}>{friendlyLabel(feature)}</span>
               <div className="relative h-2.5 rounded bg-white">
                 <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--border-strong)]" />
                 {!negligible && (

@@ -1,3 +1,5 @@
+import { friendlyLabel } from "@/lib/feature-registry";
+
 interface Driver {
   feature: string;
   contribution: number;
@@ -5,27 +7,6 @@ interface Driver {
 
 interface Props {
   drivers: Driver[];
-}
-
-const FRIENDLY: Record<string, string> = {
-  lag_1: "Yesterday's sales",
-  lag_7: "Last week, same day",
-  lag_14: "Two weeks ago",
-  lag_28: "Four weeks ago",
-  rolling_mean_7: "Past-week average",
-  rolling_mean_28: "Past-month average",
-  dow: "Day of week",
-  is_weekend: "Weekend",
-  is_holiday: "Holiday",
-  month: "Month of year",
-  promo: "Promotion active",
-  price: "Price level",
-  family: "SKU family",
-};
-
-function friendly(name: string): string {
-  if (FRIENDLY[name]) return FRIENDLY[name];
-  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatContribution(val: number): string {
@@ -59,7 +40,7 @@ export function DriverBars({ drivers }: Props) {
           return (
             <li key={d.feature + i} className="grid grid-cols-[10rem_1fr_3.5rem] items-center gap-3">
               <span className="truncate text-xs font-medium text-[var(--ink)]" title={d.feature}>
-                {friendly(d.feature)}
+                {friendlyLabel(d.feature)}
               </span>
               <div className="relative h-4 rounded bg-[var(--surface-muted)]">
                 <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--border-strong)]" />

@@ -3,6 +3,7 @@ import type { ToolImpl } from "./index";
 import { loadFeatures, getFeatureRow, loadTenantModels } from "@/lib/features";
 import { loadTrees, shapContribs } from "@/lib/gbm-walker";
 import { assertBranchAccess } from "@/lib/rbac";
+import { loadTenantFeatureMask } from "@/lib/tenant-feature-mask";
 
 const ArgsSchema = z.object({
   sku: z.string().min(1),
@@ -46,7 +47,13 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     if (!raw) return { error: "no_median_quantile_model" };
     const m = loadTrees(raw);
     const contribs = shapContribs(m, row);
+    // Filter contributions by what this tenant has data for, so the driver
+    // panel only surfaces features the operator can actually act on. The
+    // model still walks all its trained features internally — we just hide
+    // the ones the tenant isn't supplying from the explanation.
+    const mask = await loadTenantFeatureMask(ctx.env, ctx.tenantId);
     const ranked = Object.entries(contribs)
+      .filter(([name]) => mask.available.has(name))
       .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
       .slice(0, top_k)
       .map(([name, val]) => ({ feature: name, contribution: Math.round(val * 1000) / 1000 }));

@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth/argon2";
 import { createConnector, setDefaultConnector, listConnectors } from "@/lib/connector";
+import { V1_DEFAULT_AVAILABILITY } from "@/lib/feature-registry";
 
 const DEMO_SLUG = "favorita";
 const DEMO_NAME = "Favorita";
@@ -52,6 +53,10 @@ async function upsertTenant(env: CloudflareEnv): Promise<string> {
 		vertical: DEMO_VERTICAL,
 		plan: "free",
 		createdAt: Date.now(),
+		// Demo tenant is the V1 baseline — every feature the current LightGBM
+		// trains on. New tenants without explicit availability get the same
+		// default automatically (see tenant-feature-mask.ts).
+		featureAvailability: JSON.stringify(V1_DEFAULT_AVAILABILITY),
 	});
 	return id;
 }
