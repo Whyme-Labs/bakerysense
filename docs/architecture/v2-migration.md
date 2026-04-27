@@ -90,7 +90,9 @@ Zero-shot TimesFM is **48% worse at the median** because it has no access to wea
 
 **Production decision: Tier 6 — TimesFM tails + V1.5 prior median.** Keep the population prior at q0.4 / q0.5 / q0.6, route q0.8 / q0.9 to TimesFM, leave q0.1 / q0.2 / q0.3 / q0.7 to LightGBM. Verified in the head-to-head benchmark as strict improvement over Tier 4: WAPE 0.212 unchanged (prior still owns the median), q0.9 pinball **1.091 (-5.3%)**. The newsvendor decision lives at q0.9, so this lift translates directly to better bake-quantity decisions.
 
-**Status: code-complete, hot-swappable on backend availability.** The TS wiring (`predictTimesFM` live fetch + Tier 6 routing in `tools/forecast.ts` + `loadActualsHistory` in `actuals.ts`) is shipped to production. With `TIMESFM_ENDPOINT` unset the worker continues serving Tier 4; setting the secret promotes the warm/mature path to Tier 6 (`perq_blend_v2`) without redeploying any code.
+**Status: ACTIVE in production (verified 2026-04-27 14:08 UTC).** Worker hit a TimesFM-2.0-500m backend exposed via tunnel and returned `forecaster: "perq_blend_v2"` with `timesfm_tail: true`. The TimesFM-derived q0.9 was 125 (vs GBM fallback 128.1) for TRADITIONAL BAGUETTE on the demo tenant — the production realization of the 5.3% q0.9 pinball improvement measured in the benchmark.
+
+The TS wiring (`predictTimesFM` live fetch + Tier 6 routing in `tools/forecast.ts` + `loadActualsHistory` in `actuals.ts`) is shipped. With `TIMESFM_ENDPOINT` unset the worker serves Tier 4 (`perq_blend_v1`); setting the secret promotes the warm/mature path to Tier 6 (`perq_blend_v2`) without redeploying any code. The 5s fetch timeout is the right production guardrail — when TimesFM is slow or unavailable, the worker falls through to GBM tails so newsvendor never blocks.
 
 Three deploy targets are pre-built:
 
