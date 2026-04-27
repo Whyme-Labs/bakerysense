@@ -6,6 +6,9 @@ import {
   widenQuantiles,
   priorToQuantileMap,
   coldStartForecast,
+  alphaForBlending,
+  alphaForQuantile,
+  blendQuantiles,
 } from "../../src/lib/forecast-router";
 import { priorForecast } from "../../src/lib/corpus-prior";
 
@@ -143,5 +146,82 @@ describe("coldStartForecast end-to-end", () => {
     const spreadA = a.quantiles["q0.9"] - a.quantiles["q0.1"];
     const spreadB = b.quantiles["q0.9"] - b.quantiles["q0.1"];
     expect(spreadA).toBeGreaterThan(spreadB);
+  });
+});
+
+describe("alphaForBlending (maturity factor)", () => {
+  it("0 actuals → 0 (pure prior)", () => {
+    expect(alphaForBlending(0)).toBe(0);
+  });
+  it("90+ actuals → 1 (full GBM weight available for tail quantiles)", () => {
+    expect(alphaForBlending(90)).toBe(1);
+    expect(alphaForBlending(180)).toBe(1);
+  });
+  it("ramps linearly between 0 and 90", () => {
+    expect(alphaForBlending(45)).toBeCloseTo(0.5);
+    expect(alphaForBlending(30)).toBeCloseTo(1 / 3, 3);
+  });
+});
+
+describe("alphaForQuantile (Tier 4 per-quantile blend)", () => {
+  it("at full maturity, prior owns the median (alpha=0 at q0.5)", () => {
+    expect(alphaForQuantile(180, "q0.5")).toBe(0);
+    expect(alphaForQuantile(180, "q0.4")).toBe(0);
+    expect(alphaForQuantile(180, "q0.6")).toBe(0);
+  });
+  it("at full maturity, GBM owns the tails (alpha=1 at q0.1 and q0.9)", () => {
+    expect(alphaForQuantile(180, "q0.1")).toBe(1);
+    expect(alphaForQuantile(180, "q0.2")).toBe(1);
+    expect(alphaForQuantile(180, "q0.8")).toBe(1);
+    expect(alphaForQuantile(180, "q0.9")).toBe(1);
+  });
+  it("transitional quantiles (q0.3, q0.7) hit a 50/50 blend at maturity", () => {
+    expect(alphaForQuantile(180, "q0.3")).toBe(0.5);
+    expect(alphaForQuantile(180, "q0.7")).toBe(0.5);
+  });
+  it("cold tenant gets pure prior across every quantile", () => {
+    for (const q of ["q0.1", "q0.3", "q0.5", "q0.7", "q0.9"]) {
+      expect(alphaForQuantile(0, q)).toBe(0);
+    }
+  });
+  it("half-mature tenant scales every quantile's target alpha by maturity", () => {
+    // count=45 → maturity=0.5; q0.9 target=1.0 → effective alpha=0.5
+    expect(alphaForQuantile(45, "q0.9")).toBeCloseTo(0.5);
+    // q0.5 target=0 → still 0 regardless of maturity
+    expect(alphaForQuantile(45, "q0.5")).toBe(0);
+  });
+});
+
+describe("blendQuantiles (per-quantile + flat alpha)", () => {
+  const prior = { "q0.1": 5, "q0.5": 10, "q0.9": 20 };
+  const gbm = { "q0.1": 15, "q0.5": 30, "q0.9": 60 };
+
+  it("flat alpha=0 returns pure prior", () => {
+    expect(blendQuantiles(prior, gbm, 0)).toEqual(prior);
+  });
+  it("flat alpha=1 returns pure GBM", () => {
+    expect(blendQuantiles(prior, gbm, 1)).toEqual(gbm);
+  });
+  it("flat alpha=0.5 returns midpoint per quantile", () => {
+    const out = blendQuantiles(prior, gbm, 0.5);
+    expect(out["q0.5"]).toBe(20);
+    expect(out["q0.9"]).toBe(40);
+  });
+  it("per-quantile fn yields prior at q0.5 and GBM at q0.9 when fed the Tier-4 schedule", () => {
+    const out = blendQuantiles(prior, gbm, (q) => alphaForQuantile(180, q));
+    expect(out["q0.5"]).toBe(10); // pure prior
+    expect(out["q0.9"]).toBe(60); // pure GBM
+    expect(out["q0.1"]).toBe(15); // pure GBM
+  });
+  it("falls back to prior when GBM lacks a quantile", () => {
+    const partialGbm = { "q0.5": 30 };
+    const out = blendQuantiles(prior, partialGbm, 1);
+    expect(out["q0.1"]).toBe(5);
+    expect(out["q0.5"]).toBe(30);
+    expect(out["q0.9"]).toBe(20);
+  });
+  it("clamps out-of-range alpha values to [0, 1]", () => {
+    expect(blendQuantiles(prior, gbm, 2)).toEqual(gbm);
+    expect(blendQuantiles(prior, gbm, -1)).toEqual(prior);
   });
 });

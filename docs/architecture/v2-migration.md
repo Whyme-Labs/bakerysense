@@ -124,17 +124,22 @@ Includes a small linear-algebra kernel (no external BLAS dep) for hierarchies up
 
 **Tier 3 — real weather backfill.** The original loader hardcoded `temp_c=15.0 / precip_mm=0.0` for the Kaggle CSV. `scripts/fetch_weather.py` pulls 637 days of Paris weather (Open-Meteo archive, free tier) and writes `data/raw/weather_paris.csv`; the loader joins on `date` and exposes `temp_c`, `precip_mm`, `humidity`, `wind_kmh`, `is_storm`. The production V2 pipeline (Sprint 3) already consumes the same registry-keyed columns via `branch_weather_daily`, so training and serving stay schema-aligned.
 
-| Forecaster | WAPE | MASE | pinball-q0.9 |
-|---|---|---|---|
-| Seasonal-naive (lag-7)            | 0.341 | 1.000 | – |
-| AutoARIMA (statsforecast)         | 0.548 | 1.610 | – |
-| AutoETS (statsforecast)           | 0.271 | 0.796 | – |
-| CrostonClassic (intermittent)     | 0.764 | 2.244 | – |
-| V1 LightGBM (with weather + lag-365) | 0.245 | 0.719 | **1.153** |
-| V1.5 population prior             | 0.212 | 0.623 | – |
-| V1.5 BLEND 50/50 prior+GBM        | 0.212 | 0.624 | – |
+**Tier 4 — per-quantile alpha.** Tier 1 used a single maturity-weighted alpha for all quantiles, which forced an awkward trade-off: at alpha=1 (mature tenant) we got the GBM's calibrated q0.9 but lost the prior's better median. The benchmark exposed why: the prior's q0.9 pinball is **2.38** (terrible — it's just a static historical 90th percentile) while the GBM's is **1.15** (calibrated, adapts to recent shocks). Conversely, the GBM's median WAPE is 0.245 while the prior's is 0.212. Different quantiles have different winners.
 
-The blend's MASE of 0.624 sits comfortably below every classical baseline. Production blend uses maturity-weighted alpha — at alpha=1 (mature tenant in this benchmark) the blend reduces to GBM, so the headline number for warming-up tenants is the prior's 0.212.
+`alphaForQuantile(actualsCount, quantile)` returns `maturity * QUANTILE_TARGET_ALPHA[q]`, where `QUANTILE_TARGET_ALPHA` routes each quantile to whichever forecaster wins it: prior owns q0.4 / q0.5 / q0.6 (target alpha = 0), GBM owns q0.1 / q0.2 / q0.8 / q0.9 (target alpha = 1), with a 50/50 ramp at q0.3 / q0.7. The maturity factor multiplies through, so cold tenants still see pure prior. `blendQuantiles` now accepts either a flat number (kept for backward compat) or a per-quantile function.
+
+| Forecaster | WAPE | MASE | pinball-q0.5 | pinball-q0.9 |
+|---|---|---|---|---|
+| Seasonal-naive (lag-7)            | 0.341 | 1.000 | 3.27 | – |
+| AutoARIMA (statsforecast)         | 0.548 | 1.610 | 5.26 | – |
+| AutoETS (statsforecast)           | 0.271 | 0.796 | 2.60 | – |
+| CrostonClassic (intermittent)     | 0.764 | 2.244 | 7.34 | – |
+| V1 LightGBM (with weather + lag-365) | 0.245 | 0.719 | 2.35 | **1.153** |
+| V1.5 population prior             | 0.212 | 0.623 | 2.04 | 2.38 |
+| V1.5 BLEND 50/50 prior+GBM        | 0.212 | 0.624 | 2.04 | – |
+| **V1.5 PER-QUANTILE blend (Tier 4)** | **0.212** | **0.623** | **2.04** | **1.153** |
+
+The Tier-4 forecaster gets the prior's median **and** the GBM's tail simultaneously — every metric matches the best of either alone. This is the production path for mature tenants going forward.
 
 ## What's next
 

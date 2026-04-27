@@ -65,23 +65,33 @@ def fit_population_prior(train: pd.DataFrame) -> dict[tuple[str, int], dict[str,
         if ys.size == 0:
             continue
         out[(sku, int(dow))] = {
+            "q0.1": float(np.quantile(ys, 0.10)),
             "q0.5": float(np.quantile(ys, 0.50)),
+            "q0.9": float(np.quantile(ys, 0.90)),
         }
     for dow in range(7):
         ys = train.loc[train["dow"] == dow, TARGET].to_numpy(dtype=float)
         if ys.size == 0:
             continue
-        out[("__default__", dow)] = {"q0.5": float(np.quantile(ys, 0.50))}
+        out[("__default__", dow)] = {
+            "q0.1": float(np.quantile(ys, 0.10)),
+            "q0.5": float(np.quantile(ys, 0.50)),
+            "q0.9": float(np.quantile(ys, 0.90)),
+        }
     return out
 
 
-def predict_prior(test: pd.DataFrame, prior: dict[tuple[str, int], dict[str, float]]) -> np.ndarray:
+def predict_prior(
+    test: pd.DataFrame,
+    prior: dict[tuple[str, int], dict[str, float]],
+    quantile: str = "q0.5",
+) -> np.ndarray:
     dow = pd.to_datetime(test[DATE]).dt.dayofweek
     out = []
     for sku, dow_v in zip(test[GROUP].to_numpy(), dow.to_numpy()):
         key = (sku, int(dow_v))
-        q = prior.get(key) or prior.get(("__default__", int(dow_v))) or {"q0.5": 0.0}
-        out.append(q["q0.5"])
+        q = prior.get(key) or prior.get(("__default__", int(dow_v))) or {quantile: 0.0}
+        out.append(q.get(quantile, 0.0))
     return np.asarray(out, dtype=float)
 
 
@@ -190,14 +200,25 @@ def main() -> int:
     # ── V1.5 cold-start prior ────────────────────────────────────────────
     print("  fitting V1.5 population prior…", flush=True)
     prior = fit_population_prior(train)
-    prior_q50 = predict_prior(test, prior)
+    prior_q50 = predict_prior(test, prior, "q0.5")
+    prior_q90 = predict_prior(test, prior, "q0.9")
 
     # ── V1.5 blended (mature-tenant ensemble) ─────────────────────────────
     # alpha = 1 for mature tenant in this benchmark — the test rows have
     # 11k+ training actuals behind them. We also report a 50/50 blend to
     # show what a warming-up tenant would experience.
     blend_50 = 0.5 * prior_q50 + 0.5 * gbm_q50
-    print("  fitting V1.5 blend (50/50 prior+GBM)…\n", flush=True)
+    print("  fitting V1.5 blend (50/50 prior+GBM)…", flush=True)
+
+    # ── V1.5 PER-QUANTILE BLEND (Tier 4) ─────────────────────────────────
+    # The prior beats the GBM at the median; the GBM beats the prior at
+    # the q0.9 tail (the GBM adapts to recent shocks). A flat alpha forces
+    # one or the other for the whole envelope. Per-quantile alpha takes
+    # the best of both: pure prior at q0.5, pure GBM at q0.9, smoothed in
+    # between. This is what mature tenants should actually use.
+    hybrid_q50 = prior_q50  # alpha[q0.5] = 0
+    hybrid_q90 = gbm_q90    # alpha[q0.9] = 1
+    print("  fitting V1.5 PER-QUANTILE blend (prior@q0.5, GBM@q0.9)…\n", flush=True)
 
     # ── Headline table ────────────────────────────────────────────────────
     print("─" * 78)
@@ -214,6 +235,7 @@ def main() -> int:
         ("V1 LightGBM (ours)",               gbm_q50),
         ("V1.5 population prior (ours)",     prior_q50),
         ("V1.5 BLEND 50/50 prior+GBM (ours)", blend_50),
+        ("V1.5 PER-QUANTILE (T4, ours)",      hybrid_q50),
     ]
     for name, p in rows:
         if np.isnan(p).all():
@@ -231,6 +253,8 @@ def main() -> int:
     print("─" * 78)
     print(f"  {'forecaster':<32} {'pinball-q0.9':>14}")
     print(f"  {'V1 LightGBM (ours)':<32} {pinball_loss(y, gbm_q90, 0.9):>14.4f}")
+    print(f"  {'V1.5 prior q0.9 (ours)':<32} {pinball_loss(y, prior_q90, 0.9):>14.4f}")
+    print(f"  {'V1.5 PER-QUANTILE T4 (ours)':<32} {pinball_loss(y, hybrid_q90, 0.9):>14.4f}")
 
     # Headline summary
     overall_naive = wape(y, naive)

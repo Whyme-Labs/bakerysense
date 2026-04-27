@@ -189,12 +189,11 @@ export function coldStartForecast(family: string, onDate: string, stageInfo: Sta
  * because it ignores recent-shock noise. Blending the two by tenant
  * maturity captures the prior's stability AND the GBM's tail calibration.
  *
- * Formula:
- *   alpha = clip(actuals_count / 90, 0, 1)
- *   blended[q] = (1 - alpha) * prior[q] + alpha * gbm[q]
+ * Maturity factor:
+ *   maturity = clip(actuals_count / 90, 0, 1)
  *
- * The GBM-only path (alpha=1) keeps q0.9 calibration intact for newsvendor.
- * The prior-only path (alpha=0) is the existing cold-start fallback.
+ * The cold-start path (maturity=0) is pure prior. As actuals accumulate,
+ * GBM signal phases in at the rate the per-quantile schedule allows.
  */
 export function alphaForBlending(actualsCount: number): number {
   const a = actualsCount / 90;
@@ -203,12 +202,55 @@ export function alphaForBlending(actualsCount: number): number {
   return a;
 }
 
+/**
+ * Per-quantile target alpha at full maturity (Tier 4 of the V1.5 head-to-head
+ * benchmark). The empirical finding:
+ *
+ *   • Prior wins at q0.5 (WAPE 0.212 vs GBM 0.245) — the (family, dow) median
+ *     is a stable seasonal anchor that ignores recent-shock noise.
+ *   • GBM wins at q0.9 (pinball 1.15 vs prior 2.38) — the GBM adapts to
+ *     recent shocks and is the only one calibrated for the newsvendor tail.
+ *
+ * So at maturity the median stays with the prior (target_alpha = 0) and the
+ * tails switch to GBM (target_alpha = 1), with a smooth ramp through q0.3
+ * and q0.7. The effective alpha is `maturity * target_alpha[q]`, so cold
+ * tenants still see pure prior across the whole envelope.
+ */
+const QUANTILE_TARGET_ALPHA: Record<string, number> = {
+  "q0.1": 1.0,
+  "q0.2": 1.0,
+  "q0.3": 0.5,
+  "q0.4": 0.0,
+  "q0.5": 0.0,
+  "q0.6": 0.0,
+  "q0.7": 0.5,
+  "q0.8": 1.0,
+  "q0.9": 1.0,
+};
+
+export function alphaForQuantile(actualsCount: number, quantile: string): number {
+  const maturity = alphaForBlending(actualsCount);
+  const target = QUANTILE_TARGET_ALPHA[quantile] ?? 1.0;
+  return maturity * target;
+}
+
+/**
+ * Blend prior and GBM quantile envelopes. `alpha` is either a flat number
+ * (kept for backward compat) or a per-quantile function returning the
+ * blend weight for each quantile name. `1 - alpha` weighs the prior,
+ * `alpha` weighs the GBM, identically per quantile.
+ */
 export function blendQuantiles(
   priorQ: Record<string, number>,
   gbmQ: Record<string, number>,
-  alpha: number,
+  alpha: number | ((quantile: string) => number),
 ): Record<string, number> {
-  const a = Math.max(0, Math.min(1, alpha));
+  const alphaFn = typeof alpha === "function"
+    ? (q: string) => Math.max(0, Math.min(1, alpha(q)))
+    : (() => {
+        const a = Math.max(0, Math.min(1, alpha));
+        return () => a;
+      })();
   const out: Record<string, number> = {};
   // Take the union of quantile keys; if either side lacks a quantile,
   // fall back to whatever's available rather than dropping the key.
@@ -219,6 +261,7 @@ export function blendQuantiles(
     if (p == null && g == null) continue;
     if (p == null) { out[k] = g; continue; }
     if (g == null) { out[k] = p; continue; }
+    const a = alphaFn(k);
     out[k] = (1 - a) * p + a * g;
   }
   return out;

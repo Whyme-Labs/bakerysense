@@ -9,6 +9,7 @@ import {
   widenQuantiles,
   coldStartForecast,
   alphaForBlending,
+  alphaForQuantile,
   blendQuantiles,
   priorToQuantileMap,
   type StageInfo,
@@ -84,22 +85,24 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     }
     if (Object.keys(gbmQ).length === 0) return { error: "no_quantile_models_loaded" };
 
-    // Maturity-weighted blend with the population prior. At alpha=1 (90+
-    // actuals) we use pure GBM; below 90 we mix in the prior's stability,
-    // which the head-to-head benchmark proved beats the GBM at the median.
-    // The GBM-only path retains the calibrated q0.9 the newsvendor needs.
+    // Per-quantile maturity blend (Tier 4). The benchmark established that
+    // the prior wins at the median (lower WAPE) while the GBM owns the
+    // q0.9 tail (calibrated for newsvendor). Per-quantile alpha takes the
+    // best of both: at maturity the median stays with the prior and the
+    // tails switch to GBM. Cold tenants still get pure prior because the
+    // maturity factor multiplies every quantile's target alpha.
     const prior = priorForecast(sku, on_date);
     const priorQ = priorToQuantileMap(prior.quantiles);
-    const alpha = alphaForBlending(stageInfo.actuals_count);
-    const blended = blendQuantiles(priorQ, gbmQ, alpha);
+    const maturity = alphaForBlending(stageInfo.actuals_count);
+    const blended = blendQuantiles(priorQ, gbmQ, (q) => alphaForQuantile(stageInfo.actuals_count, q));
 
     // Honest band widening even on the blended path while warm — bands
     // tighten automatically once the tenant is mature.
     const finalQ = widenQuantiles(blended, stageInfo.band_multiplier);
 
     const { quantity, quantile } = orderQuantity(finalQ, ctx.costRatio.cu, ctx.costRatio.co);
-    const forecaster = alpha === 1 ? "lightgbm_quantile_js" : alpha === 0 ? "population_prior_v1" : "blend_prior_lgbm";
-    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, forecaster, { blend_alpha: Math.round(alpha * 100) / 100 });
+    const forecaster = maturity === 0 ? "population_prior_v1" : "perq_blend_v1";
+    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, forecaster, { blend_alpha: Math.round(maturity * 100) / 100 });
   },
 };
 
