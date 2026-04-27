@@ -90,12 +90,17 @@ Zero-shot TimesFM is **48% worse at the median** because it has no access to wea
 
 **Production decision: Tier 6 — TimesFM tails + V1.5 prior median.** Keep the population prior at q0.4 / q0.5 / q0.6, route q0.8 / q0.9 to TimesFM, leave q0.1 / q0.2 / q0.3 / q0.7 to LightGBM. Verified in the head-to-head benchmark as strict improvement over Tier 4: WAPE 0.212 unchanged (prior still owns the median), q0.9 pinball **1.091 (-5.3%)**. The newsvendor decision lives at q0.9, so this lift translates directly to better bake-quantity decisions.
 
-**Migration to live (Tier 6 wiring):**
-1. Provision a Cloudflare Container (or Modal / Replicate) with `google/timesfm-2.0-500m-pytorch` weights cached on a persistent volume. Container needs ~5GB RAM for FP16 inference. Expose `POST /infer`. CPU inference is ~1s/series; GPU drops it to ~50ms.
-2. Bind the container service in `wrangler.jsonc` as `TIMESFM` and set `TIMESFM_ENDPOINT`.
-3. Replace the `throw` in `predictTimesFM` with `await env.TIMESFM.fetch("/infer", ...)`.
-4. Forecast router promotes q0.8 / q0.9 to TimesFM. Forecaster label becomes `"perq_blend_v2"`. Median stays with the prior — explicit decision per the empirical finding.
-5. Tenant LoRA training (V2 roadmap) can later pull the median onto TimesFM once the model has seen tenant covariates.
+**Status: code-complete, hot-swappable on backend availability.** The TS wiring (`predictTimesFM` live fetch + Tier 6 routing in `tools/forecast.ts` + `loadActualsHistory` in `actuals.ts`) is shipped to production. With `TIMESFM_ENDPOINT` unset the worker continues serving Tier 4; setting the secret promotes the warm/mature path to Tier 6 (`perq_blend_v2`) without redeploying any code.
+
+Three deploy targets are pre-built:
+
+1. **Modal** (`scripts/deploy_modal.py`) — `modal deploy scripts/deploy_modal.py`, copy the printed `*.modal.run` URL into `npx wrangler secret put TIMESFM_ENDPOINT`. Free tier covers our QPS; auto-scales to zero. (As of 2026-04-27 the `whyme-labs` workspace hit its monthly cap; resets at next cycle.)
+
+2. **Cloudflare Container** (`scripts/Dockerfile.timesfm`) — `docker build -f scripts/Dockerfile.timesfm -t bakerysense-timesfm .`, push to the project's CF Container Registry, bind in `wrangler.jsonc` under `containers`. ~5 GB RAM required for FP32 inference; ~$5/mo CPU.
+
+3. **Local + cloudflared quick tunnel** — fastest demo path. `uvicorn scripts.serve_timesfm:app --port 8080` then `cloudflared tunnel --url http://localhost:8080` prints a `*.trycloudflare.com` URL. Session-bound but proves Tier 6 live.
+
+The TimesFmInput → TimesFmOutput wire format is identical across all three paths because they all run the same `serve_timesfm.py` FastAPI app under the hood.
 
 ### Sprint 3 — Weather + festival ingestion
 
