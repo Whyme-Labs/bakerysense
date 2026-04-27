@@ -81,13 +81,13 @@ LightGBM beats the lag-7 naive baseline on 19 / 20 SKUs; the loser has fewer tha
 | M4 Daily (4,227 series) | 31.4 sMAPE | **2.16 sMAPE** | M4 winner 3.05 (we beat) |
 | Kaggle Web Traffic (1,095 teams) | 53.5 SMAPE | **38.8 SMAPE** | top 50 / top 5% |
 | M5 Accuracy (5,558 teams, WRMSSE) | 3.36 | **0.71 (T14)** | winner 0.520 / median 0.65 |
-| **M5 Uncertainty** (909 teams, WSPL) | – | **0.138 (T21)** | **12% below winner 0.157 on validation** (zero-shot, hybrid L9+L10+L11) |
+| **M5 Uncertainty** (909 teams, WSPL) | – | **0.138 (T21)** | top-tier range on validation period (winner 0.157 private; zero-shot, hybrid L9+L10+L11) |
 
-V1.5's `(family × dow)` prior fits dense weekly-seasonal retail (wins French Bakery, competitive NN5); fails on heterogeneous M4 and intermittent M5. **TimesFM-2.0-500m zero-shot fills the gap**: beats every M4 Daily method (2.16 sMAPE vs winner 3.05), top 5% on Kaggle Web Traffic (1,095 teams), and via Tier 14 top-down (forecast 70 store×department series, disaggregate via revenue shares) lands **WRMSSE 0.71 on M5 Accuracy** and **WSPL 0.138 on M5 Uncertainty validation — 12% below winner 0.157**. All single-pass, vs M5 winners' 12-model ensembles.
+V1.5's `(family × dow)` prior fits dense weekly-seasonal retail (wins French Bakery, competitive NN5); fails on heterogeneous M4 and intermittent M5. **TimesFM-2.0-500m zero-shot fills the gap**: beats every M4 Daily method (2.16 sMAPE vs winner 3.05), top 5% on Kaggle Web Traffic (1,095 teams), and via Tier 14 top-down (forecast 70 store×department series, disaggregate via revenue shares) lands **WRMSSE 0.71 on M5 Accuracy** and **WSPL 0.138 on M5 Uncertainty validation period** — competitive with top-of-leaderboard finishers (winner posted 0.157 on private). All single-pass + per-level routing, vs M5 winners' 12-model ensembles.
 
 Production architecture is Tier 6 per-quantile blend — V1.5 prior at median, TimesFM at q0.9 (5.3–31% better calibration depending on dataset). Setting `TIMESFM_ENDPOINT` flips `perq_blend_v1` → `perq_blend_v2` with no redeploy.
 
-**JS↔Python parity:** 700/700 within 1×10⁻⁴. **Tests:** 185 green. **Latency:** 5–15s/turn. The feedback loop is the long-term value driver — daily actuals improve WAPE within 2–4 weeks.
+**JS↔Python parity:** 700/700. **Tests:** 185 green. **Latency:** 5–15s/turn. Daily actuals improve WAPE within 2–4 weeks.
 
 ---
 
