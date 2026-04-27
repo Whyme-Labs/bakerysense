@@ -84,30 +84,46 @@ export class TimesFmUnavailableError extends Error {
 }
 
 /**
- * V2 forecast call. Currently a stub: throws TimesFmUnavailableError so
- * callers fall back. When the container ships, replace the body with
- * a service-binding fetch.
+ * V2 forecast call. Calls the FastAPI backend at TIMESFM_ENDPOINT/infer
+ * (matches scripts/serve_timesfm.py byte-for-byte). Throws
+ * TimesFmUnavailableError when no backend is configured or the call
+ * fails — the forecast router catches and falls back to V1 GBM tails.
+ *
+ * Timeout is intentionally short (5s) because newsvendor decisions
+ * cannot block on a slow ML service; better to fall back than stall.
  */
+const TIMESFM_TIMEOUT_MS = 5000;
+
 export async function predictTimesFM(
   env: CloudflareEnv,
-  _input: TimesFmInput,
+  input: TimesFmInput,
 ): Promise<TimesFmOutput> {
-  // Read the binding from env at runtime. When TIMESFM_ENDPOINT is
-  // absent we throw so the router falls back; when present we POST.
   const endpoint = (env as unknown as { TIMESFM_ENDPOINT?: string }).TIMESFM_ENDPOINT;
   if (!endpoint) {
     throw new TimesFmUnavailableError("TIMESFM_ENDPOINT not set");
   }
-  // Live path — disabled today; uncomment + test once a backend exists.
-  //
-  // const res = await fetch(`${endpoint}/infer`, {
-  //   method: "POST",
-  //   headers: { "content-type": "application/json" },
-  //   body: JSON.stringify(_input),
-  // });
-  // if (!res.ok) throw new TimesFmUnavailableError(`HTTP ${res.status}`);
-  // return (await res.json()) as TimesFmOutput;
-  throw new TimesFmUnavailableError("live path disabled — see migration notes");
+  const url = endpoint.replace(/\/$/, "") + "/infer";
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), TIMESFM_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new TimesFmUnavailableError(`HTTP ${res.status} from ${url}`);
+    }
+    return (await res.json()) as TimesFmOutput;
+  } catch (err) {
+    if (err instanceof TimesFmUnavailableError) throw err;
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new TimesFmUnavailableError(reason);
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 /** Cheap probe used by the router to decide whether to attempt a V2

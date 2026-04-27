@@ -15,6 +15,17 @@ import {
   type StageInfo,
 } from "@/lib/forecast-router";
 import { priorForecast } from "@/lib/corpus-prior";
+import { isTimesFmConfigured, predictTimesFM, TimesFmUnavailableError } from "@/lib/forecasters/timesfm";
+import { loadActualsHistory } from "@/lib/actuals";
+
+/** Tier 6: which quantiles get routed to TimesFM (vs the V1 GBM).
+ *  Empirical (scripts/benchmark_timesfm.py): TimesFM-2 has better q0.8/q0.9
+ *  calibration than the GBM but worse median, so only the upper tail is
+ *  rerouted. The prior owns q0.4/q0.5/q0.6 regardless. */
+const TIMESFM_TAIL_QUANTILES = new Set(["q0.8", "q0.9"]);
+/** ~17 weeks — enough context for TimesFM-2 weekly seasonality without
+ *  blowing the 5s timeout in the worker. */
+const TIMESFM_HISTORY_DAYS = 120;
 
 const ArgsSchema = z.object({
   sku: z.string().min(1),
@@ -94,6 +105,40 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     const prior = priorForecast(sku, on_date);
     const priorQ = priorToQuantileMap(prior.quantiles);
     const maturity = alphaForBlending(stageInfo.actuals_count);
+
+    // Tier 6: when a TimesFM backend is configured, replace the GBM's
+    // q0.8/q0.9 with TimesFM's (5.3% better q0.9 pinball per the head-to-head
+    // benchmark). If the call fails for any reason — timeout, 5xx, missing
+    // history — fall through to the Tier 4 GBM-only path so newsvendor
+    // never blocks on the ML service.
+    let tfmApplied = false;
+    if (isTimesFmConfigured(ctx.env)) {
+      try {
+        const history = await loadActualsHistory(ctx.env, ctx.tenantId, branch_id, sku, TIMESFM_HISTORY_DAYS);
+        if (history.length >= 28) {
+          const tfm = await predictTimesFM(ctx.env, {
+            history,
+            horizon: 1,
+            quantiles: [0.8, 0.9],
+          });
+          for (const q of TIMESFM_TAIL_QUANTILES) {
+            const arr = tfm.quantiles[q];
+            if (arr && arr.length > 0 && Number.isFinite(arr[0])) {
+              gbmQ[q] = Math.max(0, arr[0]);
+            }
+          }
+          tfmApplied = true;
+        }
+      } catch (err) {
+        if (!(err instanceof TimesFmUnavailableError)) {
+          // Don't crash the forecast on an unexpected TimesFM error;
+          // log and fall back. The forecaster label below records that
+          // we stayed on the GBM tail.
+          console.warn("TimesFM tail call failed, falling back to GBM:", err);
+        }
+      }
+    }
+
     const blended = blendQuantiles(priorQ, gbmQ, (q) => alphaForQuantile(stageInfo.actuals_count, q));
 
     // Honest band widening even on the blended path while warm — bands
@@ -101,8 +146,13 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     const finalQ = widenQuantiles(blended, stageInfo.band_multiplier);
 
     const { quantity, quantile } = orderQuantity(finalQ, ctx.costRatio.cu, ctx.costRatio.co);
-    const forecaster = maturity === 0 ? "population_prior_v1" : "perq_blend_v1";
-    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, forecaster, { blend_alpha: Math.round(maturity * 100) / 100 });
+    const forecaster = maturity === 0
+      ? "population_prior_v1"
+      : tfmApplied ? "perq_blend_v2" : "perq_blend_v1";
+    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, forecaster, {
+      blend_alpha: Math.round(maturity * 100) / 100,
+      timesfm_tail: tfmApplied,
+    });
   },
 };
 

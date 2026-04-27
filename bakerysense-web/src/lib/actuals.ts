@@ -59,6 +59,38 @@ export async function listActuals(env: CloudflareEnv, tenantId: string, branchId
 		.orderBy(desc(dailyActuals.date)).limit(limit).all();
 }
 
+/**
+ * Load the most-recent N actuals for a single (tenant, branch, family),
+ * ordered oldest-first. Used by the TimesFM tail forecaster (Sprint 2 +
+ * Tier 6) which requires raw history rather than engineered features.
+ *
+ * Falls back to actualBake when actualSales is null — the latter is the
+ * truth, but during onboarding a tenant might only have bake counts.
+ */
+export async function loadActualsHistory(
+	env: CloudflareEnv,
+	tenantId: string,
+	branchId: string,
+	family: string,
+	days: number,
+): Promise<number[]> {
+	const rows = await getDb(env).select().from(dailyActuals)
+		.where(and(
+			eq(dailyActuals.tenantId, tenantId),
+			eq(dailyActuals.branchId, branchId),
+			eq(dailyActuals.family, family),
+		))
+		.orderBy(desc(dailyActuals.date))
+		.limit(days)
+		.all();
+	// rows are newest-first; reverse to oldest-first for the FM input
+	const ordered = rows.slice().reverse();
+	return ordered.map((r) => {
+		const v = r.actualSales ?? r.actualBake ?? 0;
+		return Number(v) || 0;
+	});
+}
+
 export interface CsvParseResult { rows: ActualsRow[]; errors: Array<{ line: number; message: string }> }
 
 export function parseActualsCsv(csv: string, tenantId: string, branchId: string, capturedByUserId: string | null): CsvParseResult {

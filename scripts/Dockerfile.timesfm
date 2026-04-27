@@ -1,0 +1,55 @@
+# TimesFM-2 serving container for BakerySense Sprint 2.
+#
+# Build:    docker build -f scripts/Dockerfile.timesfm -t bakerysense-timesfm .
+# Run:      docker run -p 8080:8080 bakerysense-timesfm
+# Healthz:  curl localhost:8080/healthz
+#
+# Deploys to:
+#   • Cloudflare Container — push to Container Registry; bind in wrangler.jsonc
+#   • Modal              — `modal deploy scripts/serve_timesfm.py`
+#   • Replicate          — push image, expose POST /infer
+#   • Any K8s with CPU   — kubectl create deployment, scale horizontally
+#
+# Image is ~3GB with weights pre-cached (saves ~7min cold-start on first
+# request). For ephemeral environments without persistent volume, weights
+# download on lifespan startup (~5min on a fast connection).
+
+FROM python:3.11-slim
+
+# System deps. PyTorch wheel + tokenizers need C runtime; OpenMP for BLAS.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential libomp-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Single-pass dependency install — keeps layer count low.
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        "timesfm[torch]==1.3.0" \
+        fastapi==0.117.0 \
+        "uvicorn[standard]==0.32.0" \
+        pydantic==2.9.0
+
+# Pre-cache the 500m weights so the first request doesn't pay the
+# ~5min HF download. Toggle off for slim images (deploy with persistent
+# volume instead). Override with --build-arg PRELOAD=0.
+ARG PRELOAD=1
+ENV TIMESFM_MODEL_REPO=google/timesfm-2.0-500m-pytorch
+RUN if [ "$PRELOAD" = "1" ]; then \
+        python -c "from huggingface_hub import snapshot_download; \
+                   snapshot_download('${TIMESFM_MODEL_REPO}')" ; \
+    fi
+
+COPY scripts/serve_timesfm.py /app/serve_timesfm.py
+
+ENV TIMESFM_BACKEND=cpu \
+    TIMESFM_CONTEXT_LEN=512 \
+    TIMESFM_HORIZON_LEN=128 \
+    TIMESFM_BATCH_SIZE=8
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://127.0.0.1:8080/healthz || exit 1
+
+CMD ["uvicorn", "serve_timesfm:app", "--host", "0.0.0.0", "--port", "8080"]
