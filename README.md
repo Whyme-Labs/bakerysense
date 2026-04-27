@@ -177,13 +177,18 @@ Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scrip
 | **M5 Walmart** (level 12) | intermittent retail, 30K SKUs, 5y | 0.803 WAPE | AutoETS 0.685 (subset) | **0.666 WAPE** | M5 winner WRMSSE 0.520 |
 | **M5 Walmart** (full WRMSSE, 12 levels, bottom-up) | hierarchical retail | 3.363 | – | **1.864** | M5 winner 0.520 / median 0.65 / naive 0.91 |
 | **M5 Walmart** (Tier 10: TimesFM L1 top-down) | hierarchical retail | – | – | **0.800** | beats naive 0.91 by 12.5%; below median 0.65 |
+| **M5 Walmart** (Tier 14: TimesFM L9 store×dept top-down) | hierarchical retail | – | – | **0.713** | beats naive by 22%; approaches median 0.65 |
 
 **TimesFM-2.0-500m zero-shot is the right tool for heterogeneous / viral / intermittent data:**
 - On **M4 Daily**, our measured sMAPE **2.16 beats every published method** — including the M4 winner Smyl ES-RNN (3.046), N-BEATS (2.94), and the original TimesFM paper's own number (2.94 on the older 1.0-200m).
 - On **Kaggle Web Traffic** (1,095 teams in original 2017 competition), our SMAPE **38.83 places in the top 50 (top 5%)** — without any fine-tuning, feature engineering, or covariates. Just the raw TimesFM-2 weights.
 - On **M5 Walmart** (5,558 teams), TimesFM-2 zero-shot WAPE **0.666 beats AutoETS 0.685 and seasonal-naive 0.862** on level 12 (30,490 series). RMSSE at level 12 = 1.022, on par with single-model LightGBM in M5 papers (~1.05 published). The naive bottom-up aggregation gives full WRMSSE 1.864.
 
-  **Tier 10 multi-level reconciliation** changes the picture: forecast the L1 TOTAL series with TimesFM-2 directly (just one series, RMSSE 0.598 — beats seasonal-naive 0.751 at L1), then disaggregate to all 30,490 leaves via last-28-day historical revenue shares. Result: **WRMSSE 0.800 — beats the naive benchmark (0.91-1.07) by 12.5%**, lands well above the leaderboard median (0.65) but ahead of the bulk of the 5,558-team field. The architectural lesson: for hierarchical retail, a single foundation-model forecast at the aggregate level + classical disaggregation is far better than 30K independent leaf forecasts.
+  **Tier 10 multi-level reconciliation** changes the picture: forecast the L1 TOTAL series with TimesFM-2 directly (just one series, RMSSE 0.598 — beats seasonal-naive 0.751 at L1), then disaggregate to all 30,490 leaves via last-28-day historical revenue shares. Result: **WRMSSE 0.800 — beats the naive benchmark (0.91-1.07) by 12.5%**.
+
+  **Tier 14 (deeper aggregation) goes further: WRMSSE 0.713 — 22% better than naive**. Forecast the 70 store × department series with TimesFM (~0.5 sec inference total), disaggregate within each group via item-level shares. Captures cross-store variation (CA SNAP days, TX promotions) that L1/L4 forecasts can't. With 71 TimesFM API calls and a divisor, lands above the leaderboard median (~0.65) but dramatically ahead of the 5,558-team field's bottom half. The M5 winner reached 0.520 with 12+ model ensembles + per-level training — proving the gap isn't about TimesFM, but about ensemble + tuning depth.
+
+  The architectural lesson: for hierarchical retail, a small number of foundation-model forecasts at well-chosen intermediate levels + classical disaggregation beats 30K independent leaf forecasts (and beats classical methods alone) at a tiny fraction of the compute.
 
 **V1.5's (family × dow) population prior** is a *correct* retail inductive bias — wins decisively on French Bakery and is competitive on NN5 — but it's the *wrong* bias for non-seasonal heterogeneous data, where it loses to even seasonal-naive.
 

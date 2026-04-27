@@ -117,22 +117,28 @@ def compute_wrmsse(
     last28_days = [f"d_{i}" for i in range(train_end_day - 27, train_end_day + 1)]
     last28_weeks = [d_to_week[d] for d in last28_days]
 
-    # For each (store, item, wm_yr_wk) we have a price. Build a fast
-    # lookup keyed by (store_id, item_id, wm_yr_wk).
-    price_idx = sell_prices.set_index(["store_id", "item_id", "wm_yr_wk"])["sell_price"]
-
-    # Per-leaf revenue summed across the 28 days
-    revenues = np.zeros(n_leaves, dtype=np.float64)
+    # Vectorised revenue computation. The original .loc-per-leaf loop was
+    # 854K pandas index lookups (~1µs each on a multi-index) → ~14 sec
+    # per WRMSSE call, fine alone but multiplied by 3+ benchmarks of
+    # mostly-idle wall time. Replace with a single merge that joins
+    # sell_prices to (store, item, week) keys.
     last28_arr = train_matrix[:, -28:]  # units sold per series per day
+
+    # Build a long-format frame: one row per (leaf, day) with the right week
+    leaf_keys = sales_df[["store_id", "item_id"]].copy()
+    leaf_keys["leaf_idx"] = np.arange(n_leaves)
+
+    # For each of the 28 days, get the prevailing weekly price for every leaf.
+    # Merge sell_prices on (store_id, item_id, wm_yr_wk).
+    revenues = np.zeros(n_leaves, dtype=np.float64)
+    sell_prices_idx = sell_prices.set_index(["store_id", "item_id", "wm_yr_wk"])["sell_price"]
     for di in range(28):
         wk = last28_weeks[di]
-        for li in range(n_leaves):
-            row = sales_df.iloc[li]
-            try:
-                price = price_idx.loc[(row["store_id"], row["item_id"], wk)]
-            except KeyError:
-                price = 0.0
-            revenues[li] += float(last28_arr[li, di] * price)
+        # subset prices for this week
+        week_prices = sell_prices[sell_prices["wm_yr_wk"] == wk][["store_id", "item_id", "sell_price"]]
+        merged = leaf_keys.merge(week_prices, on=["store_id", "item_id"], how="left")
+        prices = merged["sell_price"].fillna(0.0).to_numpy()
+        revenues += last28_arr[:, di].astype(np.float64) * prices
 
     print(f"    total revenue (last 28 train days): ${revenues.sum():,.0f}")
 
