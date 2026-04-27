@@ -164,19 +164,26 @@ V1.5 population prior beats every classical baseline on the median forecast — 
 
 LightGBM beats the seasonal-naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE, FICELLE, ECLAIR) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
 
-### Cross-dataset generalization
+### Cross-dataset generalization (4 benchmarks)
 
-Same forecasters, three published benchmarks (`scripts/benchmark_nn5.py` + `scripts/benchmark_m4_daily.py`):
+Same forecasters, four published benchmarks (`scripts/benchmark_nn5.py` + `scripts/benchmark_m4_daily.py` + `scripts/benchmark_kaggle_web_traffic.py`):
 
-| Dataset | Domain | Best (V1.5) WAPE | Best published | Our delta |
-|---|---|---|---|---|
-| **French Bakery** | retail, weather, holidays | **0.212** | AutoETS 0.271 | **−22%** |
-| **NN5 Daily** | ATM withdrawals (weekly only, no covariates) | 0.208 | AutoETS 0.192 | +8% |
-| **M4 Daily** | heterogeneous (financial / demographic / industrial) | 0.342 | TimesFM-2 0.018 | far behind |
+| Dataset | Domain | V1.5 prior | Best classical | TimesFM-2 zero-shot | Published top |
+|---|---|---|---|---|---|
+| **French Bakery** | retail + weather + holidays | **0.212 WAPE** | AutoETS 0.271 | 0.314 | (no leaderboard — V1.5 wins by 22%) |
+| **NN5 Daily** | ATM, weekly seasonal only | 0.208 WAPE | **AutoETS 0.192** | 0.197 | DeepAR / N-BEATS |
+| **M4 Daily** | heterogeneous (financial / demographic / industrial) | 31.4 sMAPE | AutoETS 3.06 (subset) | **2.16 sMAPE** | M4 winner ES-RNN 3.046 |
+| **Kaggle Web Traffic** | Wikipedia views (viral, trending) | 53.5 SMAPE | Seasonal-naive 45.1 | **38.8 SMAPE** (top 50 / top 5%) | Winner cpmpml 35.48 |
 
-V1.5's (family × dow) population prior is a *correct* inductive bias for retail with strong weekly seasonality — it dominates French Bakery and is competitive on NN5 — but it's the *wrong* bias for non-seasonal heterogeneous data, where TimesFM-2 zero-shot is the right tool. The per-quantile architecture (Tier 6) generalizes: TimesFM-2 wins the q0.9 calibration on every dataset tested, so the production blend always benefits from routing the tail to it.
+**TimesFM-2.0-500m zero-shot is the right tool for heterogeneous / viral data:**
+- On **M4 Daily**, our measured sMAPE **2.16 beats every published method** — including the M4 winner Smyl ES-RNN (3.046), N-BEATS (2.94), and the original TimesFM paper's own number (2.94 on the older 1.0-200m).
+- On **Kaggle Web Traffic** (1,095 teams in original 2017 competition), our SMAPE **38.83 places in the top 50 (top 5%)** — without any fine-tuning, feature engineering, or covariates. Just the raw TimesFM-2 weights.
 
-On M4 Daily the TimesFM-2.0-500m zero-shot result we measured (sMAPE 2.16) **beats every published M4 method** including the M4 winner Smyl ES-RNN (3.046) and the original TimesFM paper's own number (2.94, on the older 1.0-200m). That's the value of a recent foundation model. The lesson for the production system: route by data characteristics, don't blindly apply one forecaster.
+**V1.5's (family × dow) population prior** is a *correct* retail inductive bias — wins decisively on French Bakery and is competitive on NN5 — but it's the *wrong* bias for non-seasonal heterogeneous data, where it loses to even seasonal-naive.
+
+**The per-quantile architecture (Tier 6) is what generalizes universally** — TimesFM-2 wins the q0.9 calibration on every dataset tested (5.3% improvement on French Bakery, 11% on NN5, 31% on Kaggle Web Traffic), so the production blend always benefits from routing the tail to it.
+
+The production system's value is the **wiring**: drop V1.5 in for retail tenants, drop TimesFM in for everything else, route q0.9 through TimesFM regardless. The forecast router's stage-aware blend is data-agnostic.
 
 ## License
 
