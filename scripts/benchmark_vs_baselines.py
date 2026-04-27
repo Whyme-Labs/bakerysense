@@ -178,7 +178,7 @@ def main() -> int:
             sf_results[name] = np.full(len(test), np.nan)
 
     # ── V1 LightGBM ───────────────────────────────────────────────────────
-    print("  fitting V1 LightGBM…", flush=True)
+    print("  fitting V1 LightGBM (with lag_365)…", flush=True)
     fcols = feature_columns(feats)
     gbm = QuantileGBM()
     gbm.fit(train, valid=valid, feature_names=fcols)
@@ -188,9 +188,16 @@ def main() -> int:
     gbm_q90 = gbm_preds["q0.9"].to_numpy()
 
     # ── V1.5 cold-start prior ────────────────────────────────────────────
-    print("  fitting V1.5 population prior…\n", flush=True)
+    print("  fitting V1.5 population prior…", flush=True)
     prior = fit_population_prior(train)
     prior_q50 = predict_prior(test, prior)
+
+    # ── V1.5 blended (mature-tenant ensemble) ─────────────────────────────
+    # alpha = 1 for mature tenant in this benchmark — the test rows have
+    # 11k+ training actuals behind them. We also report a 50/50 blend to
+    # show what a warming-up tenant would experience.
+    blend_50 = 0.5 * prior_q50 + 0.5 * gbm_q50
+    print("  fitting V1.5 blend (50/50 prior+GBM)…\n", flush=True)
 
     # ── Headline table ────────────────────────────────────────────────────
     print("─" * 78)
@@ -206,6 +213,7 @@ def main() -> int:
         ("CrostonClassic (intermittent)",    sf_results.get("Croston",   np.full_like(naive, np.nan))),
         ("V1 LightGBM (ours)",               gbm_q50),
         ("V1.5 population prior (ours)",     prior_q50),
+        ("V1.5 BLEND 50/50 prior+GBM (ours)", blend_50),
     ]
     for name, p in rows:
         if np.isnan(p).all():

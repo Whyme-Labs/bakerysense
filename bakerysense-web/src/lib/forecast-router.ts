@@ -181,3 +181,45 @@ export function coldStartForecast(family: string, onDate: string, stageInfo: Sta
     is_default_family: prior.is_default_family,
   };
 }
+
+/**
+ * Maturity-weighted ensemble blend of the population prior with the GBM
+ * forecast. Empirically (per scripts/benchmark_v1_5.py + benchmark_vs_baselines.py)
+ * the prior is a more stable point estimator than the GBM at the median
+ * because it ignores recent-shock noise. Blending the two by tenant
+ * maturity captures the prior's stability AND the GBM's tail calibration.
+ *
+ * Formula:
+ *   alpha = clip(actuals_count / 90, 0, 1)
+ *   blended[q] = (1 - alpha) * prior[q] + alpha * gbm[q]
+ *
+ * The GBM-only path (alpha=1) keeps q0.9 calibration intact for newsvendor.
+ * The prior-only path (alpha=0) is the existing cold-start fallback.
+ */
+export function alphaForBlending(actualsCount: number): number {
+  const a = actualsCount / 90;
+  if (a <= 0) return 0;
+  if (a >= 1) return 1;
+  return a;
+}
+
+export function blendQuantiles(
+  priorQ: Record<string, number>,
+  gbmQ: Record<string, number>,
+  alpha: number,
+): Record<string, number> {
+  const a = Math.max(0, Math.min(1, alpha));
+  const out: Record<string, number> = {};
+  // Take the union of quantile keys; if either side lacks a quantile,
+  // fall back to whatever's available rather than dropping the key.
+  const keys = new Set([...Object.keys(priorQ), ...Object.keys(gbmQ)]);
+  for (const k of keys) {
+    const p = priorQ[k];
+    const g = gbmQ[k];
+    if (p == null && g == null) continue;
+    if (p == null) { out[k] = g; continue; }
+    if (g == null) { out[k] = p; continue; }
+    out[k] = (1 - a) * p + a * g;
+  }
+  return out;
+}

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-LAG_STEPS = (1, 7, 14, 28)
+LAG_STEPS = (1, 7, 14, 28, 365)
 ROLLING_WINDOWS = (7, 28)
 
 TARGET = "units_sold"
@@ -63,6 +63,14 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
 
 
 def drop_warmup(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove rows where lag/rolling features are undefined."""
-    min_lag = max(LAG_STEPS)
+    """Remove rows where short-horizon lag/rolling features are undefined.
+
+    `lag_365` may legitimately stay NaN for the first year of any tenant's
+    history — LightGBM treats NaN as a valid split direction, so we don't
+    require it to be populated for a row to be usable. The warmup cut is
+    keyed on the longest non-yearly lag so we don't lose 12 months of
+    training data on a 1.7-year corpus.
+    """
+    short_lags = [l for l in LAG_STEPS if l < 365]
+    min_lag = max(short_lags)
     return df.dropna(subset=[f"lag_{min_lag}"]).reset_index(drop=True)

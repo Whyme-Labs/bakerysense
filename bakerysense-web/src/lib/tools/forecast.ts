@@ -8,8 +8,12 @@ import {
   resolveStage,
   widenQuantiles,
   coldStartForecast,
+  alphaForBlending,
+  blendQuantiles,
+  priorToQuantileMap,
   type StageInfo,
 } from "@/lib/forecast-router";
+import { priorForecast } from "@/lib/corpus-prior";
 
 const ArgsSchema = z.object({
   sku: z.string().min(1),
@@ -71,21 +75,31 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     }
 
     const models = await loadTenantModels(ctx.env, ctx.tenantId);
-    const quantiles: Record<string, number> = {};
+    const gbmQ: Record<string, number> = {};
     for (const q of ctx.quantiles) {
       const raw = models.quantiles[q.toFixed(1)];
       if (!raw) continue;
       const m = loadTrees(raw);
-      quantiles[`q${q.toFixed(1)}`] = predict(m, row);
+      gbmQ[`q${q.toFixed(1)}`] = predict(m, row);
     }
-    if (Object.keys(quantiles).length === 0) return { error: "no_quantile_models_loaded" };
+    if (Object.keys(gbmQ).length === 0) return { error: "no_quantile_models_loaded" };
 
-    // Honest band widening even on the GBM path while warm — bands tighten
-    // again automatically once the tenant is mature.
-    const finalQ = widenQuantiles(quantiles, stageInfo.band_multiplier);
+    // Maturity-weighted blend with the population prior. At alpha=1 (90+
+    // actuals) we use pure GBM; below 90 we mix in the prior's stability,
+    // which the head-to-head benchmark proved beats the GBM at the median.
+    // The GBM-only path retains the calibrated q0.9 the newsvendor needs.
+    const prior = priorForecast(sku, on_date);
+    const priorQ = priorToQuantileMap(prior.quantiles);
+    const alpha = alphaForBlending(stageInfo.actuals_count);
+    const blended = blendQuantiles(priorQ, gbmQ, alpha);
+
+    // Honest band widening even on the blended path while warm — bands
+    // tighten automatically once the tenant is mature.
+    const finalQ = widenQuantiles(blended, stageInfo.band_multiplier);
 
     const { quantity, quantile } = orderQuantity(finalQ, ctx.costRatio.cu, ctx.costRatio.co);
-    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, "lightgbm_quantile_js");
+    const forecaster = alpha === 1 ? "lightgbm_quantile_js" : alpha === 0 ? "population_prior_v1" : "blend_prior_lgbm";
+    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, forecaster, { blend_alpha: Math.round(alpha * 100) / 100 });
   },
 };
 
