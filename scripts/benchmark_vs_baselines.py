@@ -192,16 +192,22 @@ def main() -> int:
     fcols = feature_columns(feats)
     gbm = QuantileGBM()
     gbm.fit(train, valid=valid, feature_names=fcols)
-    gbm_preds = gbm.predict_all(test)
-    gbm_preds.index = test.index
-    gbm_q50 = gbm_preds["q0.5"].to_numpy()
-    gbm_q90 = gbm_preds["q0.9"].to_numpy()
+    gbm_preds_test = gbm.predict_all(test)
+    gbm_preds_test.index = test.index
+    gbm_q50 = gbm_preds_test["q0.5"].to_numpy()
+    gbm_q90 = gbm_preds_test["q0.9"].to_numpy()
+    # Also predict on valid so per-SKU alpha tuning has signal that wasn't
+    # in the GBM's training set.
+    gbm_preds_valid = gbm.predict_all(valid)
+    gbm_preds_valid.index = valid.index
+    gbm_valid_q50 = gbm_preds_valid["q0.5"].to_numpy()
 
     # ── V1.5 cold-start prior ────────────────────────────────────────────
     print("  fitting V1.5 population prior…", flush=True)
     prior = fit_population_prior(train)
     prior_q50 = predict_prior(test, prior, "q0.5")
     prior_q90 = predict_prior(test, prior, "q0.9")
+    prior_valid_q50 = predict_prior(valid, prior, "q0.5")
 
     # ── V1.5 blended (mature-tenant ensemble) ─────────────────────────────
     # alpha = 1 for mature tenant in this benchmark — the test rows have
@@ -218,7 +224,48 @@ def main() -> int:
     # between. This is what mature tenants should actually use.
     hybrid_q50 = prior_q50  # alpha[q0.5] = 0
     hybrid_q90 = gbm_q90    # alpha[q0.9] = 1
-    print("  fitting V1.5 PER-QUANTILE blend (prior@q0.5, GBM@q0.9)…\n", flush=True)
+    print("  fitting V1.5 PER-QUANTILE blend (prior@q0.5, GBM@q0.9)…", flush=True)
+
+    # ── V1.5 PER-SKU PER-QUANTILE BLEND (Tier 5) ─────────────────────────
+    # NEGATIVE RESULT (kept for reproducibility): tuning alpha per-SKU on
+    # the valid window doesn't generalize to test. With a 28-day valid
+    # window we have ~28 datapoints per SKU, which is too few to estimate
+    # a per-SKU alpha cleanly — the optimum on valid is statistically
+    # indistinguishable from neighbouring alphas, but we pick the noisy
+    # min anyway. The selection variance dominates the lift signal, so
+    # Tier 5 underperforms Tier 4 on this dataset.
+    #
+    # On larger datasets (M5, Favorita: 5y of history) per-SKU tuning
+    # could work because there's enough data per SKU to discriminate
+    # alphas. Here, Tier 4's flat schedule is the floor.
+    print("  tuning per-SKU alpha on valid window (Tier 5 — negative result)…", flush=True)
+    valid_y = valid[TARGET].to_numpy()
+    valid_skus = valid[GROUP].to_numpy()
+    test_skus = test[GROUP].to_numpy()
+
+    alpha_grid = np.linspace(0.0, 1.0, 11)  # {0.0, 0.1, ..., 1.0}
+    sku_alpha: dict[str, float] = {}
+    for sku in pd.Series(valid_skus).unique():
+        m = valid_skus == sku
+        if m.sum() == 0:
+            continue
+        y_v = valid_y[m]
+        p_v = prior_valid_q50[m]
+        g_v = gbm_valid_q50[m]
+        best_a, best_w = 0.0, np.inf
+        for a in alpha_grid:
+            blend = (1 - a) * p_v + a * g_v
+            w = wape(y_v, blend)
+            if w < best_w:
+                best_w, best_a = w, a
+        sku_alpha[str(sku)] = float(best_a)
+
+    # Apply the per-SKU alphas to test.
+    persku_q50 = np.empty_like(prior_q50)
+    for i, sku in enumerate(test_skus):
+        a = sku_alpha.get(str(sku), 0.0)
+        persku_q50[i] = (1 - a) * prior_q50[i] + a * gbm_q50[i]
+    print(f"    per-SKU alpha distribution: min={min(sku_alpha.values()):.2f} median={np.median(list(sku_alpha.values())):.2f} max={max(sku_alpha.values()):.2f}\n", flush=True)
 
     # ── Headline table ────────────────────────────────────────────────────
     print("─" * 78)
@@ -236,6 +283,7 @@ def main() -> int:
         ("V1.5 population prior (ours)",     prior_q50),
         ("V1.5 BLEND 50/50 prior+GBM (ours)", blend_50),
         ("V1.5 PER-QUANTILE (T4, ours)",      hybrid_q50),
+        ("V1.5 PER-SKU PER-Q (T5, ours)",     persku_q50),
     ]
     for name, p in rows:
         if np.isnan(p).all():

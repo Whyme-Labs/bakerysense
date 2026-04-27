@@ -141,6 +141,8 @@ Includes a small linear-algebra kernel (no external BLAS dep) for hierarchies up
 
 The Tier-4 forecaster gets the prior's median **and** the GBM's tail simultaneously — every metric matches the best of either alone. This is the production path for mature tenants going forward.
 
+**Tier 5 — per-SKU alpha tuning (negative result).** We tried selecting each SKU's optimal alpha by minimising WAPE on a held-out valid window before applying to test. The hypothesis: high-volume stable SKUs (BAGUETTE) and trending sparse SKUs (specialty pastries) might want different blend ratios. The result: WAPE moved the wrong way (0.212 → 0.241). On a 28-day valid window we have ~28 datapoints per SKU — too few to discriminate alphas at the 0.1 grid resolution, so the selection variance dominates the lift signal. The chosen alphas (median=0.90, "use GBM") didn't generalise to the test window. **Lesson:** Tier 4's flat schedule is the floor on a 1.7-year corpus. Per-SKU tuning would likely work on M5 / Favorita (5y of history) where there's enough per-SKU signal to discriminate. Tier 5 code is preserved in `scripts/benchmark_vs_baselines.py` for reproducibility but is **not** wired into production.
+
 ## What's next
 
 | Roadmap item | Status | Notes |
