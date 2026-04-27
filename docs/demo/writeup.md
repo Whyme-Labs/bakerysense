@@ -72,18 +72,21 @@ The V1.5 forecaster posts WAPE **22% below the best published baseline** (AutoET
 
 LightGBM beats the lag-7 naive baseline on 19 / 20 SKUs; the loser has fewer than 30 training observations.
 
-**Cross-dataset generalization (4 published benchmarks):**
+**Cross-dataset generalization (5 published benchmarks):**
 
 | Dataset | V1.5 prior | TimesFM-2 zero-shot | Best published |
 |---|---|---|---|
 | French Bakery (retail + weather) | **0.212 WAPE** | 0.314 | AutoETS 0.271 |
 | NN5 Daily (ATM, weekly only) | 0.208 | 0.197 | AutoETS 0.192 |
-| M4 Daily (heterogeneous) | 31.4 sMAPE | **2.16 sMAPE** | M4 winner ES-RNN 3.05 |
+| M4 Daily (heterogeneous, 4,227 series) | 31.4 sMAPE | **2.16 sMAPE** | M4 winner ES-RNN 3.05 |
 | Kaggle Web Traffic (1,095 teams) | 53.5 SMAPE | **38.8 SMAPE (top 5%)** | cpmpml winner 35.5 |
+| M5 Walmart (5,558 teams, full WRMSSE) | 3.36 | 1.86 (BU) / **0.80 (Tier 10 top-down)** | winner 0.520 / median 0.65 / naive 0.91 |
 
-V1.5's `(family × dow)` prior is the *correct* inductive bias for retail — wins on French Bakery, competitive on NN5. It's *wrong* for heterogeneous data, where **TimesFM-2.0-500m zero-shot fills the gap**: it independently beats every published M4 Daily method (sMAPE 2.16 vs M4 winner ES-RNN 3.05) and places **top 50 of 1,095 teams** on the Kaggle Web Traffic leaderboard (SMAPE 38.83) without fine-tuning. The production architecture is a Tier 6 per-quantile blend — V1.5 prior at the median, TimesFM at q0.9 (5.3–31% better calibration depending on dataset). Verified live: setting `TIMESFM_ENDPOINT` flips the worker from `perq_blend_v1` to `perq_blend_v2` with no code redeploy.
+V1.5's `(family × dow)` prior is correct for dense weekly-seasonal retail (wins French Bakery, competitive NN5), wrong for heterogeneous (M4) and intermittent retail (M5). **TimesFM-2.0-500m zero-shot fills the gap**: beats every M4 Daily method (sMAPE 2.16 vs winner 3.05), places top 50 of 1,095 teams on Kaggle Web Traffic (SMAPE 38.83), and via Tier 10 top-down reconciliation (TOTAL forecast disaggregated by historical revenue shares) lands **WRMSSE 0.80 on M5** — naive +12.5% with two API calls vs the winner's 12-model ensemble at 0.520.
 
-**JS↔Python parity:** 700/700 cases within 1×10⁻⁴ tolerance. **End-to-end latency:** 5–15s per chat turn. **Test matrix:** 185 green — 49 Python, 167 Workers, 11 unit, 7 Playwright E2E. The feedback loop is the long-term value driver — a bakery entering actuals daily sees WAPE improve measurably within two to four weeks as the model learns local patterns the public dataset cannot capture.
+Production architecture is Tier 6 per-quantile blend — V1.5 prior at median, TimesFM at q0.9 (5.3–31% better calibration depending on dataset). Setting `TIMESFM_ENDPOINT` flips `perq_blend_v1` → `perq_blend_v2` with no redeploy.
+
+**JS↔Python parity:** 700/700 within 1×10⁻⁴. **Latency:** 5–15s/turn. **Tests:** 185 green. The feedback loop is the long-term value driver — daily actuals improve WAPE within 2–4 weeks as the model learns local patterns the public dataset can't capture.
 
 ---
 
