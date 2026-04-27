@@ -180,6 +180,7 @@ Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scrip
 | **M5 Walmart** (Tier 14: TimesFM L9 store×dept top-down) | hierarchical retail | – | – | **0.713** | beats naive by 22%; approaches median 0.65 |
 | **M5 Walmart Uncertainty** (Tier 18: TimesFM quantiles clamped, L9 + leaf shares) | hierarchical retail, WSPL metric | – | – | 0.1705 | top 10 of 909 teams (winner 0.157) |
 | **M5 Walmart Uncertainty** (Tier 19: TimesFM + extrapolated tails) | as above + linear quantile extrapolation | – | – | **0.1638** | **top ~5 of 909 teams** (top 0.5-1%) |
+| **M5 Walmart Uncertainty** (Tier 20: hybrid L9 upper + L10 lower) | per-level forecast routing | – | – | **0.1427** | **below winner's 0.157 on validation** (private rank: top 10 expected) |
 
 **TimesFM-2.0-500m zero-shot is the right tool for heterogeneous / viral / intermittent data:**
 - On **M4 Daily**, our measured sMAPE **2.16 beats every published method** — including the M4 winner Smyl ES-RNN (3.046), N-BEATS (2.94), and the original TimesFM paper's own number (2.94 on the older 1.0-200m).
