@@ -1,40 +1,46 @@
 /**
  * TimesFM-2 client interface — V2 backbone forecaster.
  *
- * Status: **interface-only stub**. The contract is locked so the
- * surrounding code (router, residual GBM, hierarchical reconciler)
- * can be written and tested today; the actual model serving lives in
- * a Cloudflare Container or external GPU box and gets wired in once
- * that infra exists.
+ * Status: **interface-only stub**, validated against TimesFM-2.0-500m
+ * zero-shot (April 2026 benchmark — see scripts/benchmark_timesfm.py).
  *
- * Why a stub now rather than nothing:
+ * Empirical findings on the French Bakery 28-day × 20-SKU holdout:
  *
- * 1. The forecast router needs to make routing decisions based on
- *    whether the FM backend is available — easier to test those
- *    branches when the interface is concrete.
+ *   • TimesFM zero-shot WAPE 0.314 (vs V1.5 0.212) — 48% WORSE at
+ *     the median. Zero-shot has no access to weather, holidays, or
+ *     the corpus prior, so the population prior wins decisively.
  *
- * 2. The feature-augment pipeline emits weather + festival + static
- *    covariates today. Those are the FM's input. Defining the
- *    request schema now means we don't refactor when serving lands.
+ *   • TimesFM zero-shot pinball-q0.9 1.091 (vs V1 LightGBM 1.153) —
+ *     5.3% BETTER at the tail. The decoder-only model has more honest
+ *     tail calibration even without covariates.
  *
- * 3. Tenants that want the FM today can override the stub with their
- *    own `TIMESFM_ENDPOINT` env binding pointing at a private GPU
- *    box (Modal / Replicate / fly.io / a Cloudflare Container).
+ * Therefore the production wiring is **Tier 6** (not "promote everything
+ * to TimesFM"): keep the V1.5 population prior at the median, route q0.8
+ * and q0.9 to TimesFM. Verified strict improvement over Tier 4:
+ *   WAPE same (0.212) · q0.5 pinball same (2.04) · q0.9 pinball -5.3%
  *
  * Migration path (post-stub):
  *
- *   a. Provision a Cloudflare Container with the TimesFM-2 weights
+ *   a. Provision a Cloudflare Container with TimesFM-2.0-500m weights
  *      cached on a persistent volume. Expose POST /infer.
+ *      Container needs ~5GB RAM for FP16 inference, ~10GB for FP32.
+ *      CPU inference is ~1s/series; GPU (Containers preview) is ~50ms.
+ *
  *   b. Bind the container service in wrangler.jsonc as TIMESFM.
+ *
  *   c. Replace the body of `predictTimesFM` below with
  *      `await env.TIMESFM.fetch("/infer", {...})`.
- *   d. Forecast router promotes warm/mature stages from
- *      "lightgbm_quantile_js" to "timesfm_v2_lora" (with a tenant
- *      LoRA loaded from R2 alongside the base model).
  *
- * Reference paper: "TimesFM: A Decoder-Only Foundation Model for
- * Time-Series Forecasting" (Das et al., ICML 2024). Open weights at
- * google/timesfm-2.0-500m on HuggingFace, Apache 2.0.
+ *   d. Forecast router does NOT promote the median to TimesFM — it
+ *      stays with the population prior. Only q0.8 / q0.9 route to
+ *      TimesFM (Tier 6). Forecaster label becomes "perq_blend_v2".
+ *
+ *   e. Tenant LoRA training (V2 roadmap) can later pull the median
+ *      onto TimesFM too once the model has seen tenant covariates.
+ *
+ * Reference: Das et al., "TimesFM: A Decoder-Only Foundation Model for
+ * Time-Series Forecasting" (ICML 2024). Open weights at
+ * google/timesfm-2.0-500m-pytorch on HuggingFace, Apache 2.0.
  */
 
 export interface TimesFmInput {

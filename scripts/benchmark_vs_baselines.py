@@ -267,6 +267,39 @@ def main() -> int:
         persku_q50[i] = (1 - a) * prior_q50[i] + a * gbm_q50[i]
     print(f"    per-SKU alpha distribution: min={min(sku_alpha.values()):.2f} median={np.median(list(sku_alpha.values())):.2f} max={max(sku_alpha.values()):.2f}\n", flush=True)
 
+    # ── V1.5 PRIOR + TIMESFM TAIL (Tier 6) ───────────────────────────────
+    # If scripts/benchmark_timesfm.py has been run, its predictions CSV
+    # gives us a TimesFM-2 q0.9. Empirically the zero-shot TimesFM is
+    # WORSE at the median (WAPE 0.314 vs prior 0.212) but BETTER at the
+    # q0.9 tail (pinball 1.09 vs GBM 1.15). Tier 6 keeps the prior median
+    # AND replaces the GBM tail with the TimesFM tail — strict improvement
+    # if the data backs the hypothesis.
+    tfm_q90: np.ndarray | None = None
+    tfm_csv = REPO_ROOT / "data" / "raw" / "timesfm_predictions.csv"
+    if tfm_csv.exists():
+        print("  loading TimesFM-2 predictions from cache…", flush=True)
+        tfm_df = pd.read_csv(tfm_csv, parse_dates=["date"])
+        tfm_map = {(row.sku, row.date.date()): (float(row.tfm_q50), float(row.tfm_q90))
+                   for row in tfm_df.itertuples()}
+        # align to test rows
+        tfm_q50_aligned = np.full(len(test), np.nan)
+        tfm_q90 = np.full(len(test), np.nan)
+        for i, (sku, date_v) in enumerate(zip(
+            test[GROUP].astype(str).to_numpy(),
+            pd.to_datetime(test[DATE]).dt.date,
+        )):
+            v = tfm_map.get((str(sku), date_v))
+            if v is None: continue
+            tfm_q50_aligned[i] = v[0]
+            tfm_q90[i] = v[1]
+        # Tier 6 median = prior; Tier 6 tail = TimesFM
+        tier6_q50 = prior_q50
+        tier6_q90 = tfm_q90
+    else:
+        print("  TimesFM cache absent — Tier 6 row will read N/A. Run scripts/benchmark_timesfm.py first.", flush=True)
+        tier6_q50 = np.full(len(test), np.nan)
+        tier6_q90 = np.full(len(test), np.nan)
+
     # ── Headline table ────────────────────────────────────────────────────
     print("─" * 78)
     print("OVERALL — point forecast (median) — lower WAPE/MASE is better")
@@ -284,6 +317,7 @@ def main() -> int:
         ("V1.5 BLEND 50/50 prior+GBM (ours)", blend_50),
         ("V1.5 PER-QUANTILE (T4, ours)",      hybrid_q50),
         ("V1.5 PER-SKU PER-Q (T5, ours)",     persku_q50),
+        ("V1.5 PRIOR+TIMESFM TAIL (T6, ours)", tier6_q50),
     ]
     for name, p in rows:
         if np.isnan(p).all():
@@ -303,6 +337,9 @@ def main() -> int:
     print(f"  {'V1 LightGBM (ours)':<32} {pinball_loss(y, gbm_q90, 0.9):>14.4f}")
     print(f"  {'V1.5 prior q0.9 (ours)':<32} {pinball_loss(y, prior_q90, 0.9):>14.4f}")
     print(f"  {'V1.5 PER-QUANTILE T4 (ours)':<32} {pinball_loss(y, hybrid_q90, 0.9):>14.4f}")
+    if tfm_q90 is not None and not np.isnan(tfm_q90).all():
+        m = ~np.isnan(tfm_q90)
+        print(f"  {'V1.5 TIMESFM TAIL T6 (ours)':<32} {pinball_loss(y[m], tier6_q90[m], 0.9):>14.4f}")
 
     # Headline summary
     overall_naive = wape(y, naive)

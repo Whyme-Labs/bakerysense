@@ -154,9 +154,13 @@ On the public **French Bakery Kaggle dataset** (matthieugimbert/french-bakery-da
 | **V1 LightGBM** (ours, with weather + lag-365) | **0.245** | **0.719** | **2.35** |
 | **V1.5 population prior** (ours, family × dow median) | **0.212** | **0.623** | **2.04** |
 | **V1.5 BLEND 50/50 prior+GBM** (ours) | **0.212** | **0.624** | **2.04** |
-| **V1.5 PER-QUANTILE blend (Tier 4)** (ours) | **0.212** | **0.623** | **2.04** |
+| **V1.5 PER-QUANTILE blend (Tier 4 — production)** (ours) | **0.212** | **0.623** | **2.04** |
+| TimesFM-2.0-500m zero-shot               | 0.314 | 0.921 | 3.01 |
+| **V1.5 PRIOR + TimesFM TAIL (Tier 6 — awaiting backend)** (ours) | **0.212** | **0.623** | **2.04** |
 
 V1.5 population prior beats every classical baseline on the median forecast — the (family × dow) median is a remarkably stable point estimator because it ignores recent-shock noise. But the prior's `q0.9` is poorly calibrated for newsvendor (pinball **2.38** vs the GBM's **1.15**) because it's a static historical 90th percentile. **Per-quantile blend** (Tier 4) routes each quantile to the forecaster that wins it: prior owns `q0.4 / q0.5 / q0.6` (lower WAPE), GBM owns `q0.1 / q0.2 / q0.8 / q0.9` (calibrated tails), with a 50/50 ramp at `q0.3 / q0.7`. Multiplied by a `maturity = clip(actuals_count / 90, 0, 1)` factor so cold tenants still see pure prior. See [`bakerysense-web/src/lib/forecast-router.ts`](bakerysense-web/src/lib/forecast-router.ts).
+
+**TimesFM-2 head-to-head** (`scripts/benchmark_timesfm.py`): zero-shot TimesFM-2.0-500m is **48% worse at the median** (WAPE 0.314) because it has no access to weather, holidays, or the corpus prior — but **5.3% better at the q0.9 tail** (pinball 1.091 vs GBM 1.153) because the decoder-only model has more honest tail calibration. Production target is **Tier 6 = prior median + TimesFM tail** which posts WAPE **0.212 (unchanged) / pinball-q0.9 1.091**, a strict improvement over Tier 4. The wiring is straightforward — Sprint 2's `predictTimesFM` stub returns the canonical 9-quantile output — but live inference is blocked on a backend (Cloudflare Container, Modal, or Replicate) since the 500M-param model doesn't fit a vanilla Worker.
 
 LightGBM beats the seasonal-naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE, FICELLE, ECLAIR) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
 

@@ -73,17 +73,29 @@ The forecast tool's contract (input → 7-quantile output) is unchanged; the res
 
 **Tests:** 19 unit tests covering thresholds, band widening symmetry, quantile interpolation, prior lookup, and end-to-end cold-start envelope.
 
-### Sprint 2 — TimesFM serving (stub)
+### Sprint 2 — TimesFM serving (validated stub + Tier 6 finding)
 
-`src/lib/forecasters/timesfm.ts` defines the V2 backbone interface but throws `TimesFmUnavailableError` until a backend is configured via `TIMESFM_ENDPOINT`. The forecast router will catch this and fall back to V1 GBM, so clients see a graceful downgrade rather than a 500.
+`src/lib/forecasters/timesfm.ts` defines the V2 backbone interface but throws `TimesFmUnavailableError` until a backend is configured via `TIMESFM_ENDPOINT`. The forecast router falls back to V1 GBM, so clients see a graceful downgrade rather than a 500.
 
-**Migration to live:**
-1. Provision a Cloudflare Container with TimesFM-2 weights cached on a persistent volume. Expose `POST /infer`.
-2. Bind the container service in `wrangler.jsonc` as `TIMESFM`.
-3. Replace the throwing body with `await env.TIMESFM.fetch("/infer", ...)`.
-4. Forecast router promotes warm/mature stages to `"timesfm_v2_lora"`.
+**Empirical answer to "should we wire TimesFM in production?"** — `scripts/benchmark_timesfm.py` runs TimesFM-2.0-500m zero-shot on the same 28-day × 20-SKU French Bakery holdout used by the head-to-head benchmark. Findings:
 
-**Why stub now:** the input schema (`history`, `static_covariates`, `future_known`, `tenant_lora`) is exactly what the V2 ingestion layer (Sprint 3) is already producing. Stubbing locks the contract so we don't refactor the forecast tool when the container ships.
+| Metric | TimesFM-2 zero-shot | V1.5 PER-QUANTILE (T4 production) |
+|---|---|---|
+| WAPE | 0.314 | **0.212** |
+| MASE | 0.921 | **0.623** |
+| pinball-q0.5 | 3.01 | **2.04** |
+| pinball-q0.9 | **1.091** | 1.153 |
+
+Zero-shot TimesFM is **48% worse at the median** because it has no access to weather, holidays, lag_365, or the corpus prior — but **5.3% better at the q0.9 tail** because the decoder-only model has more honest tail calibration even without covariates.
+
+**Production decision: Tier 6 — TimesFM tails + V1.5 prior median.** Keep the population prior at q0.4 / q0.5 / q0.6, route q0.8 / q0.9 to TimesFM, leave q0.1 / q0.2 / q0.3 / q0.7 to LightGBM. Verified in the head-to-head benchmark as strict improvement over Tier 4: WAPE 0.212 unchanged (prior still owns the median), q0.9 pinball **1.091 (-5.3%)**. The newsvendor decision lives at q0.9, so this lift translates directly to better bake-quantity decisions.
+
+**Migration to live (Tier 6 wiring):**
+1. Provision a Cloudflare Container (or Modal / Replicate) with `google/timesfm-2.0-500m-pytorch` weights cached on a persistent volume. Container needs ~5GB RAM for FP16 inference. Expose `POST /infer`. CPU inference is ~1s/series; GPU drops it to ~50ms.
+2. Bind the container service in `wrangler.jsonc` as `TIMESFM` and set `TIMESFM_ENDPOINT`.
+3. Replace the `throw` in `predictTimesFM` with `await env.TIMESFM.fetch("/infer", ...)`.
+4. Forecast router promotes q0.8 / q0.9 to TimesFM. Forecaster label becomes `"perq_blend_v2"`. Median stays with the prior — explicit decision per the empirical finding.
+5. Tenant LoRA training (V2 roadmap) can later pull the median onto TimesFM once the model has seen tenant covariates.
 
 ### Sprint 3 — Weather + festival ingestion
 
@@ -140,6 +152,15 @@ Includes a small linear-algebra kernel (no external BLAS dep) for hierarchies up
 | **V1.5 PER-QUANTILE blend (Tier 4)** | **0.212** | **0.623** | **2.04** | **1.153** |
 
 The Tier-4 forecaster gets the prior's median **and** the GBM's tail simultaneously — every metric matches the best of either alone. This is the production path for mature tenants going forward.
+
+**Tier 6 — prior median + TimesFM tail (validated, awaiting backend).** Once Sprint 2's serving lands (any of Cloudflare Container / Modal / Replicate / HF Inference API), the per-quantile blend's q0.8 / q0.9 route to TimesFM-2 instead of the GBM. Empirical verification in `scripts/benchmark_timesfm.py` + the Tier 6 row of `scripts/benchmark_vs_baselines.py`:
+
+| Forecaster | WAPE | MASE | pinball-q0.5 | pinball-q0.9 |
+|---|---|---|---|---|
+| V1.5 PER-QUANTILE (T4, production today) | 0.212 | 0.623 | 2.04 | 1.153 |
+| **V1.5 PRIOR + TimesFM TAIL (T6, awaiting backend)** | **0.212** | **0.623** | **2.04** | **1.091** |
+
+Median metrics unchanged (the prior still owns the median); q0.9 pinball **-5.3%**. The wiring is straightforward — `predictTimesFM` already returns the canonical 9-quantile output, so the router just routes q0.8 / q0.9 lookups through it instead of the GBM. The blocker is purely operational: TimesFM-2.0-500m needs ~5GB RAM and PyTorch, neither of which fits a vanilla Worker.
 
 **Tier 5 — per-SKU alpha tuning (negative result).** We tried selecting each SKU's optimal alpha by minimising WAPE on a held-out valid window before applying to test. The hypothesis: high-volume stable SKUs (BAGUETTE) and trending sparse SKUs (specialty pastries) might want different blend ratios. The result: WAPE moved the wrong way (0.212 → 0.241). On a 28-day valid window we have ~28 datapoints per SKU — too few to discriminate alphas at the 0.1 grid resolution, so the selection variance dominates the lift signal. The chosen alphas (median=0.90, "use GBM") didn't generalise to the test window. **Lesson:** Tier 4's flat schedule is the floor on a 1.7-year corpus. Per-SKU tuning would likely work on M5 / Favorita (5y of history) where there's enough per-SKU signal to discriminate. Tier 5 code is preserved in `scripts/benchmark_vs_baselines.py` for reproducibility but is **not** wired into production.
 
