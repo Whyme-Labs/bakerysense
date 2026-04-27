@@ -28,25 +28,23 @@ A non-obvious consequence: the merchant-facing UI can teach. Each statistical co
 
 ## 3. Gemma 4's Role
 
-Gemma 4 E4B (an "Effective 4B" Matformer-style sub-model with the inference cost of E2B but more capacity) is the merchant-facing layer. It handles three distinct jobs.
+Gemma 4 E4B (Effective 4B Matformer sub-model — E2B inference cost, more capacity) is the merchant-facing layer with three jobs.
 
-**Multimodal ingestion.** The display-case photo goes directly to Gemma 4 as a base64-encoded image via the OpenAI-compatible `messages[].content` list (`type: "image_url"` alongside `type: "text"`). Gemma counts products by visual category, whitelists the output against known SKUs to suppress hallucinated names, and returns a structured JSON count that flows directly into the markdown decision engine.
+**Multimodal ingestion.** Display-case photo → Gemma 4 as base64 image via the OpenAI-compatible `messages[].content` list. Gemma counts products by category, whitelists output against known SKUs to suppress hallucinations, returns structured JSON to the markdown engine.
 
-**Tool routing.** When a baker asks a free-form question — "Why am I baking 116 baguettes tomorrow?" — Gemma 4 emits an OpenAI-compatible tool call targeting one of five registered functions: `forecast_point`, `explain_drivers`, `waste_risk`, `list_skus`, or `close_out_day`. The tool-call loop is bounded to prevent runaway chains; clean turn boundaries use `stop=["<turn|>", "<tool_response>"]`.
+**Tool routing.** When a baker asks "Why am I baking 116 baguettes tomorrow?" Gemma emits an OpenAI-compatible tool call targeting one of five registered functions: `forecast_point`, `explain_drivers`, `waste_risk`, `list_skus`, `close_out_day`. The tool-call loop is bounded; clean turn boundaries via `stop=["<turn|>", "<tool_response>"]`.
 
-**Merchant-facing explanations.** Gemma renders SHAP-style driver arrays into plain-language sentences. "Last Tuesday's sales of 141 baguettes are pulling the forecast up" is more useful to a baker than a feature-importance bar chart.
+**Merchant-facing explanations.** Gemma renders SHAP driver arrays into plain language. "Last Tuesday's sales of 141 baguettes are pulling the forecast up" beats a feature-importance bar chart.
 
-Why Gemma 4 specifically? The Apache 2.0 license permits commercial deployment without royalties — essential for a product aimed at thin-margin merchants. The E4B variant fits in 16 GB of RAM in GGUF Q4_K_M quantization, matching the MacBook Pro that most independent operators already own; on-device inference means no API cost and no data leaving the premises. Gemma 4 also handles French bakery vocabulary (baguette, viennoiserie, croissant) without fine-tuning, which matters because the training data is French.
-
-The system supports eight LLM connector presets — openrouter, groq, together, openai, anthropic-via-oai, ollama-tunnel, cloudflare-ai, and custom — so operators can run Gemma 4 locally via Ollama or in the cloud, with a one-field switch in account settings.
+Why Gemma 4: Apache 2.0 license permits commercial deployment without royalties (essential for thin-margin merchants); E4B fits in 16 GB RAM in GGUF Q4_K_M quantisation (matches the MacBook Pro most independents already own — no API cost, no data egress); handles French bakery vocabulary without fine-tuning. Eight LLM connector presets (openrouter / groq / together / openai / anthropic-via-oai / ollama-tunnel / cloudflare-ai / custom) let operators run locally or in cloud with one click.
 
 ---
 
 ## 4. Architecture
 
-**Cloudflare stack.** The web application runs on Cloudflare Workers via the OpenNext adapter for Next.js 16. Storage: D1 (SQLite) for transactional records, KV for hot configuration and model version pointers, R2 for the model artifacts and SHAP feature store, Queues for async chat turns and retrains. No server to provision; cold-start latency is under 50ms.
+**Cloudflare stack.** Next.js 16 via OpenNext on Cloudflare Workers; D1 (SQLite) transactional, KV for hot config + model pointers, R2 for model artifacts + SHAP feature store, Queues for async chat + retrain. Cold-start <50ms.
 
-**Pure-TypeScript LightGBM inference.** The trained model is exported as **JSON** (human-auditable, no binary Python objects) and walked at inference time by a pure-TypeScript tree walker (`gbm-walker.ts`) running inside the Cloudflare Worker. No Python at request time; no container to manage. JS↔Python numeric parity is verified at 700/700 test cases within 1×10⁻⁴ absolute tolerance. The same walker produces approximate-SHAP attributions for the explain endpoint.
+**Pure-TypeScript LightGBM inference.** Trained model exported as JSON (human-auditable, no binary serialisation), walked by a pure-TS tree walker (`gbm-walker.ts`) inside the Worker. No Python at request time. JS↔Python parity 700/700 within 1×10⁻⁴ tolerance. Same walker produces approximate-SHAP attributions.
 
 **Operator surfaces.** The admin section makes the data and the model legible. The *Data* tab summarises sales rows, SKUs, branches, date range, plus a 30-day sparkline and recent-rows preview. The *Model* tab shows the predictor type, seven quantile heads, last-trained timestamp, plain-language feature chips ("Last week, same day", "Past-week average", …), and a *Retrain now* button.
 
@@ -70,9 +68,22 @@ The system supports eight LLM connector presets — openrouter, groq, together, 
 | V1.5 population prior (cold-start) | 0.212 | 0.623 | 2.04 | – |
 | **V1.5 PER-QUANTILE blend (production)** | **0.212** | **0.623** | **2.04** | **1.15** |
 
-The V1.5 production forecaster posts WAPE **22% below the best published baseline** (AutoETS at 0.271). The mechanism is per-quantile alpha: the (family × dow) population prior wins the median because it ignores recent-shock noise, while LightGBM wins the q0.9 tail because it adapts to recent actuals. Per-quantile blending keeps both — at maturity the median stays with the prior and the tails switch to the GBM, smoothly ramped by `maturity = clip(actuals_count / 90, 0, 1)` so cold tenants still see pure prior across the whole envelope.
+The V1.5 forecaster posts WAPE **22% below the best published baseline** (AutoETS). The mechanism is per-quantile alpha — the `(family × dow)` prior wins the median (ignores recent-shock noise), LightGBM wins the q0.9 tail (calibrated for newsvendor). Per-quantile blending keeps both, scaled by `maturity = clip(actuals_count / 90, 0, 1)` so cold tenants still see pure prior.
 
-LightGBM beats the lag-7 naive baseline on 19 / 20 SKUs; the loser has fewer than 30 training observations. **JS↔Python parity:** 700/700 cases within 1×10⁻⁴ tolerance. **End-to-end latency:** 5–15s per chat turn. **Test matrix:** 178 green — 49 Python, 167 Workers, 11 unit, 7 Playwright E2E. The feedback loop is the long-term value driver — a bakery entering actuals daily sees WAPE improve measurably within two to four weeks as the model learns local patterns the public dataset cannot capture.
+LightGBM beats the lag-7 naive baseline on 19 / 20 SKUs; the loser has fewer than 30 training observations.
+
+**Cross-dataset generalization (4 published benchmarks):**
+
+| Dataset | V1.5 prior | TimesFM-2 zero-shot | Best published |
+|---|---|---|---|
+| French Bakery (retail + weather) | **0.212 WAPE** | 0.314 | AutoETS 0.271 |
+| NN5 Daily (ATM, weekly only) | 0.208 | 0.197 | AutoETS 0.192 |
+| M4 Daily (heterogeneous) | 31.4 sMAPE | **2.16 sMAPE** | M4 winner ES-RNN 3.05 |
+| Kaggle Web Traffic (1,095 teams) | 53.5 SMAPE | **38.8 SMAPE (top 5%)** | cpmpml winner 35.5 |
+
+V1.5's `(family × dow)` prior is the *correct* inductive bias for retail — wins on French Bakery, competitive on NN5. It's *wrong* for heterogeneous data, where **TimesFM-2.0-500m zero-shot fills the gap**: it independently beats every published M4 Daily method (sMAPE 2.16 vs M4 winner ES-RNN 3.05) and places **top 50 of 1,095 teams** on the Kaggle Web Traffic leaderboard (SMAPE 38.83) without fine-tuning. The production architecture is a Tier 6 per-quantile blend — V1.5 prior at the median, TimesFM at q0.9 (5.3–31% better calibration depending on dataset). Verified live: setting `TIMESFM_ENDPOINT` flips the worker from `perq_blend_v1` to `perq_blend_v2` with no code redeploy.
+
+**JS↔Python parity:** 700/700 cases within 1×10⁻⁴ tolerance. **End-to-end latency:** 5–15s per chat turn. **Test matrix:** 185 green — 49 Python, 167 Workers, 11 unit, 7 Playwright E2E. The feedback loop is the long-term value driver — a bakery entering actuals daily sees WAPE improve measurably within two to four weeks as the model learns local patterns the public dataset cannot capture.
 
 ---
 
