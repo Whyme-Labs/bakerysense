@@ -164,6 +164,20 @@ V1.5 population prior beats every classical baseline on the median forecast — 
 
 LightGBM beats the seasonal-naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE, FICELLE, ECLAIR) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
 
+### Cross-dataset generalization
+
+Same forecasters, three published benchmarks (`scripts/benchmark_nn5.py` + `scripts/benchmark_m4_daily.py`):
+
+| Dataset | Domain | Best (V1.5) WAPE | Best published | Our delta |
+|---|---|---|---|---|
+| **French Bakery** | retail, weather, holidays | **0.212** | AutoETS 0.271 | **−22%** |
+| **NN5 Daily** | ATM withdrawals (weekly only, no covariates) | 0.208 | AutoETS 0.192 | +8% |
+| **M4 Daily** | heterogeneous (financial / demographic / industrial) | 0.342 | TimesFM-2 0.018 | far behind |
+
+V1.5's (family × dow) population prior is a *correct* inductive bias for retail with strong weekly seasonality — it dominates French Bakery and is competitive on NN5 — but it's the *wrong* bias for non-seasonal heterogeneous data, where TimesFM-2 zero-shot is the right tool. The per-quantile architecture (Tier 6) generalizes: TimesFM-2 wins the q0.9 calibration on every dataset tested, so the production blend always benefits from routing the tail to it.
+
+On M4 Daily the TimesFM-2.0-500m zero-shot result we measured (sMAPE 2.16) **beats every published M4 method** including the M4 winner Smyl ES-RNN (3.046) and the original TimesFM paper's own number (2.94, on the older 1.0-200m). That's the value of a recent foundation model. The lesson for the production system: route by data characteristics, don't blindly apply one forecaster.
+
 ## License
 
 [CC-BY-4.0](./LICENSE). Competition winners are required to release their submission under this license ([Rules §2.5](https://www.kaggle.com/competitions/gemma-4-good-hackathon/rules)).
