@@ -143,14 +143,21 @@ python scripts/demo_agent.py --tools-only
 
 ## Results
 
-On the public **French Bakery Kaggle dataset** (matthieugimbert/french-bakery-daily-sales, 2021-2022, top-20 SKUs by volume, 28-day holdout):
+On the public **French Bakery Kaggle dataset** (matthieugimbert/french-bakery-daily-sales, 2021-2022, top-20 SKUs by volume, 28-day holdout, identical per-SKU fit + horizon for every method — see [`scripts/benchmark_vs_baselines.py`](scripts/benchmark_vs_baselines.py)):
 
-| Metric | Seasonal-naive (lag-7) | LightGBM q=0.5 |
-|---|---|---|
-| WAPE | 0.341 | **0.249** |
-| MASE | 1.000 | **0.731** |
+| Forecaster | WAPE | MASE | pinball-q0.5 |
+|---|---|---|---|
+| Seasonal-naive (lag-7) | 0.341 | 1.000 | 3.27 |
+| AutoARIMA (statsforecast)        | 0.548 | 1.610 | 5.26 |
+| AutoETS (statsforecast)          | 0.271 | 0.796 | 2.60 |
+| CrostonClassic (intermittent)    | 0.764 | 2.244 | 7.34 |
+| **V1 LightGBM** (ours, with weather + lag-365) | **0.245** | **0.719** | **2.35** |
+| **V1.5 population prior** (ours, family × dow median) | **0.212** | **0.623** | **2.04** |
+| **V1.5 BLEND 50/50 prior+GBM** (ours) | **0.212** | **0.624** | **2.04** |
 
-LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE +24.5 pp, FICELLE +22.8 pp, ECLAIR +21.2 pp) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
+V1.5 population prior beats every classical baseline on the median forecast — the (family × dow) median is a remarkably stable point estimator on this dataset because it ignores recent-shock noise that the GBM tries (and sometimes fails) to fit. The GBM keeps its edge on the **q0.9 tail** where the newsvendor actually picks bake (`pinball-q0.9 = 1.15`), so production blends both: maturity-weighted ensemble (`alpha = clip(actuals_count / 90, 0, 1)`) gives stable medians from the prior **and** calibrated tails from the GBM. See [`bakerysense-web/src/lib/forecast-router.ts`](bakerysense-web/src/lib/forecast-router.ts).
+
+LightGBM beats the seasonal-naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE, FICELLE, ECLAIR) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
 
 ## License
 
@@ -168,6 +175,7 @@ LightGBM beats the naive baseline on **19 of 20 SKUs**, with the largest wins on
 - P4 Feedback loop — `daily_actuals` + `forecast_snapshots` D1 tables, close-out-today dialog + inline "report actual" + CSV import, rolling WAPE badge on dashboard + drift banner on SKU detail, model-pointer KV layer for hot version-swap, retrain queue + manual trigger + training-inputs CSV export to R2, HMAC-signed `/api/internal/publish-model` with >10% rolling-MAE regression guard, `scripts/retrain_tenant.py` local retrain → publish flow ✓
 - P5 E2E + submission — Playwright 7-scenario coverage of the demo journey (landing/signin/dashboard/SKU-detail/chat/display-case/signout; 5+6 fixme until LLM fixtures recorded), LLM fixture replayer (`BS_REPLAY_FIXTURES=1`), idempotent `seedDemo` + HMAC `POST /api/admin/seed-demo`, GitHub Actions E2E workflow, deploy + smoke docs, demo storyboard + narration script + ≤1500-word Kaggle writeup + cover image spec ✓
 - V2 forecasting architecture (Sprints 0/1/3/4 shipped, Sprint 2 stubbed) — feature registry + per-tenant availability mask; cold-start router with population-prior fallback for new tenants; Open-Meteo weather ingestion + cultural festival lookup; hierarchical reconciliation (bottom-up + OLS-MinT); TimesFM-2 backbone interface stub. See [`docs/architecture/v2-migration.md`](docs/architecture/v2-migration.md). 39 new unit tests; total 104.
+- V1.5 head-to-head benchmark — added `scripts/benchmark_vs_baselines.py` to fit AutoARIMA / AutoETS / CrostonClassic / SeasonalNaive per-SKU on the same 28-day × 20-SKU holdout, plus three accuracy upgrades: **(Tier 1)** maturity-weighted blend `alpha = clip(actuals_count / 90, 0, 1)` of population prior + GBM on warm/mature tenants — captures the prior's stable median **and** the GBM's calibrated q0.9 tail; **(Tier 2)** added `lag_365` to the GBM features so the model sees year-over-year seasonality; **(Tier 3)** real Open-Meteo weather backfill (Paris archive, 2021-01-02 → 2022-09-30) replaces the constant `temp_c=15.0 / precip_mm=0.0` placeholders — `humidity`, `wind_kmh`, `is_storm` columns flow through the GBM and the production V2 pipeline. Combined lift on the GBM: WAPE 0.249 → 0.245, q0.9 pinball 1.169 → 1.153.
 
 **Week 3 / 4** (remaining)
 - Record the demo video with the bakery owner against `docs/demo/script.md` / `storyboard.md`

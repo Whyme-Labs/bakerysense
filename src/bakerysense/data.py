@@ -17,7 +17,11 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = REPO_ROOT / "data" / "raw"
 
-COLUMNS = ["date", "sku", "units_sold", "temp_c", "precip_mm", "is_holiday"]
+COLUMNS = [
+    "date", "sku", "units_sold",
+    "temp_c", "precip_mm", "humidity", "wind_kmh", "is_storm",
+    "is_holiday",
+]
 
 
 @dataclass(frozen=True)
@@ -93,11 +97,35 @@ def _try_load_french_bakery() -> pd.DataFrame | None:
         .rename(columns={date_col: "date", sku_col: "sku", qty_col: "units_sold"})
     )
     daily["date"] = pd.to_datetime(daily["date"])
-    daily["temp_c"] = 15.0
-    daily["precip_mm"] = 0.0
+    daily = _join_weather(daily)
     fr_holidays = holidays.country_holidays("FR")
     daily["is_holiday"] = daily["date"].dt.date.isin(fr_holidays).astype(int)
     return daily[COLUMNS].sort_values(["sku", "date"]).reset_index(drop=True)
+
+
+def _join_weather(daily: pd.DataFrame) -> pd.DataFrame:
+    """Merge real Open-Meteo weather (Paris) onto the bakery daily frame.
+
+    If the weather CSV is missing we fall back to the previous constants so
+    the pipeline still runs — but the GBM gets nothing useful from those
+    rows. Run scripts/fetch_weather.py to populate it.
+    """
+    wx_path = RAW_DIR / "weather_paris.csv"
+    if wx_path.exists():
+        wx = pd.read_csv(wx_path, parse_dates=["date"])
+        wx = wx[["date", "temp_c", "precip_mm", "humidity", "wind_kmh", "is_storm"]]
+        merged = daily.merge(wx, on="date", how="left")
+        for col, default in (("temp_c", 15.0), ("precip_mm", 0.0), ("humidity", 75.0), ("wind_kmh", 10.0), ("is_storm", 0)):
+            merged[col] = merged[col].fillna(default)
+        merged["is_storm"] = merged["is_storm"].astype(int)
+        return merged
+    daily = daily.copy()
+    daily["temp_c"] = 15.0
+    daily["precip_mm"] = 0.0
+    daily["humidity"] = 75.0
+    daily["wind_kmh"] = 10.0
+    daily["is_storm"] = 0
+    return daily
 
 
 def _synthesize(start: str, end: str, seed: int, country: str) -> pd.DataFrame:
@@ -190,8 +218,8 @@ def ensure_dense(df: pd.DataFrame, fill_value: int = 0) -> pd.DataFrame:
     skus = df["sku"].unique()
     grid = pd.MultiIndex.from_product([skus, full_dates], names=["sku", "date"]).to_frame(index=False)
 
-    # carry per-day exogenous (temp, precip, is_holiday) — same across SKUs for one date
-    exog_cols = [c for c in ("temp_c", "precip_mm", "is_holiday") if c in df.columns]
+    # carry per-day exogenous — same across SKUs for one date
+    exog_cols = [c for c in ("temp_c", "precip_mm", "humidity", "wind_kmh", "is_storm", "is_holiday") if c in df.columns]
     exog = df.drop_duplicates("date")[["date", *exog_cols]] if exog_cols else None
 
     dense = grid.merge(df, on=["sku", "date"], how="left")
@@ -200,7 +228,7 @@ def ensure_dense(df: pd.DataFrame, fill_value: int = 0) -> pd.DataFrame:
         for c in exog_cols:
             dense[c] = dense[c].fillna(dense["date"].map(exog.set_index("date")[c]))
     for c in exog_cols:
-        if c == "is_holiday":
+        if c in ("is_holiday", "is_storm"):
             dense[c] = dense[c].fillna(0).astype(int)
         else:
             dense[c] = dense[c].fillna(dense[c].median())

@@ -114,6 +114,28 @@ Includes a small linear-algebra kernel (no external BLAS dep) for hierarchies up
 
 **Tests:** 8 unit tests on traversal, leaf enumeration, bottom-up aggregation, OLS identity-on-coherent input, and the gap-closing case where higher-level signal pulls leaves up.
 
+### Sprint 5 — V1.5 accuracy upgrades (head-to-head benchmark)
+
+`scripts/benchmark_vs_baselines.py` puts our forecasters head-to-head with published `statsforecast` baselines (AutoARIMA / AutoETS / CrostonClassic / SeasonalNaive) on the same 28-day × 20-SKU holdout from the French Bakery dataset. The benchmark surfaced three small but cumulative wins:
+
+**Tier 1 — maturity-weighted blend.** The population prior turns out to beat the GBM at the median (WAPE 0.212 vs 0.245) because the (family × dow) median ignores recent-shock noise. But the GBM still owns the q0.9 tail (where the newsvendor picks bake). `alphaForBlending(actuals_count) = clip(n / 90, 0, 1)` and `blendQuantiles(prior, gbm, alpha)` in `src/lib/forecast-router.ts` mix both: stable prior medians **plus** calibrated GBM tails. Cold tenants (alpha=0) get the prior; mature tenants (alpha=1) get the GBM; in between, a smooth ramp.
+
+**Tier 2 — lag_365.** Added year-over-year seasonality to the GBM features (`src/bakerysense/features.py`). LightGBM treats NaN as a valid split direction, so the lag is usable from day 1 even for tenants without 1+ year of history. `drop_warmup` keys on the longest non-yearly lag (28) to avoid losing 12 months of training data on a 1.7-year corpus.
+
+**Tier 3 — real weather backfill.** The original loader hardcoded `temp_c=15.0 / precip_mm=0.0` for the Kaggle CSV. `scripts/fetch_weather.py` pulls 637 days of Paris weather (Open-Meteo archive, free tier) and writes `data/raw/weather_paris.csv`; the loader joins on `date` and exposes `temp_c`, `precip_mm`, `humidity`, `wind_kmh`, `is_storm`. The production V2 pipeline (Sprint 3) already consumes the same registry-keyed columns via `branch_weather_daily`, so training and serving stay schema-aligned.
+
+| Forecaster | WAPE | MASE | pinball-q0.9 |
+|---|---|---|---|
+| Seasonal-naive (lag-7)            | 0.341 | 1.000 | – |
+| AutoARIMA (statsforecast)         | 0.548 | 1.610 | – |
+| AutoETS (statsforecast)           | 0.271 | 0.796 | – |
+| CrostonClassic (intermittent)     | 0.764 | 2.244 | – |
+| V1 LightGBM (with weather + lag-365) | 0.245 | 0.719 | **1.153** |
+| V1.5 population prior             | 0.212 | 0.623 | – |
+| V1.5 BLEND 50/50 prior+GBM        | 0.212 | 0.624 | – |
+
+The blend's MASE of 0.624 sits comfortably below every classical baseline. Production blend uses maturity-weighted alpha — at alpha=1 (mature tenant in this benchmark) the blend reduces to GBM, so the headline number for warming-up tenants is the prior's 0.212.
+
 ## What's next
 
 | Roadmap item | Status | Notes |
