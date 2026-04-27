@@ -300,6 +300,48 @@ def main() -> int:
         tier6_q50 = np.full(len(test), np.nan)
         tier6_q90 = np.full(len(test), np.nan)
 
+    # ── HIERARCHICAL RECONCILIATION (Sprint 4 → Tier 8) ──────────────────
+    # Reconcile per-SKU base forecasts against an aggregate TOTAL forecast.
+    # Hypothesis: aggregating across SKUs gives a denser, less-noisy series;
+    # a TOTAL forecast might catch demand-shifts the per-SKU prior misses.
+    # OLS-MinT then redistributes the TOTAL signal back to leaves.
+    print("  computing hierarchical reconciliation (Sprint 4) …", flush=True)
+    from bakerysense.hierarchical import flat_hierarchy, ols_mint  # noqa: E402
+
+    # Aggregate training history into a TOTAL daily series, fit prior on
+    # (TOTAL × dow), forecast the test horizon. The TOTAL forecast is
+    # available to OLS-MinT as a higher-level constraint.
+    total_train = train.groupby(DATE)[TARGET].sum().reset_index()
+    total_train["dow"] = pd.to_datetime(total_train[DATE]).dt.dayofweek
+    total_dow_median = total_train.groupby("dow")[TARGET].median().to_dict()
+    total_dow_q90 = total_train.groupby("dow")[TARGET].quantile(0.90).to_dict()
+
+    # Test rows we already have. Build per-(date, sku) reconciled forecasts.
+    test_dates = pd.to_datetime(test[DATE]).dt.date.to_numpy()
+    test_skus_arr = test[GROUP].astype(str).to_numpy()
+    skus_unique = sorted(set(test_skus_arr))
+    h = flat_hierarchy(skus_unique, root="TOTAL")
+
+    reconciled_q50 = np.empty_like(prior_q50)
+    bottom_up_q50 = np.empty_like(prior_q50)  # sanity: bottom-up = unchanged leaves
+    by_date: dict[object, dict[str, float]] = {}
+    by_date_idx: dict[object, list[int]] = {}
+    for i in range(len(test)):
+        d = test_dates[i]
+        by_date.setdefault(d, {})[test_skus_arr[i]] = float(hybrid_q50[i])
+        by_date_idx.setdefault(d, []).append(i)
+
+    for d, leaf_forecasts in by_date.items():
+        dow = pd.Timestamp(d).dayofweek
+        # Bottom-up sum-of-leaves; OLS-MinT projects against TOTAL prior.
+        base_with_total = dict(leaf_forecasts)
+        base_with_total["TOTAL"] = float(total_dow_median.get(int(dow), 0.0))
+        rec = ols_mint(h, base_with_total)
+        for i in by_date_idx[d]:
+            sku = test_skus_arr[i]
+            reconciled_q50[i] = rec.get(sku, hybrid_q50[i])
+            bottom_up_q50[i] = leaf_forecasts.get(sku, hybrid_q50[i])  # leaves unchanged
+
     # ── Headline table ────────────────────────────────────────────────────
     print("─" * 78)
     print("OVERALL — point forecast (median) — lower WAPE/MASE is better")
@@ -318,6 +360,7 @@ def main() -> int:
         ("V1.5 PER-QUANTILE (T4, ours)",      hybrid_q50),
         ("V1.5 PER-SKU PER-Q (T5, ours)",     persku_q50),
         ("V1.5 PRIOR+TIMESFM TAIL (T6, ours)", tier6_q50),
+        ("V1.5 + OLS-MinT recon (T8, ours)",  reconciled_q50),
     ]
     for name, p in rows:
         if np.isnan(p).all():
@@ -333,13 +376,43 @@ def main() -> int:
     print("\n" + "─" * 78)
     print("QUANTILE BAND — pinball loss at q=0.9 (where newsvendor picks bake)")
     print("─" * 78)
-    print(f"  {'forecaster':<32} {'pinball-q0.9':>14}")
-    print(f"  {'V1 LightGBM (ours)':<32} {pinball_loss(y, gbm_q90, 0.9):>14.4f}")
-    print(f"  {'V1.5 prior q0.9 (ours)':<32} {pinball_loss(y, prior_q90, 0.9):>14.4f}")
-    print(f"  {'V1.5 PER-QUANTILE T4 (ours)':<32} {pinball_loss(y, hybrid_q90, 0.9):>14.4f}")
+    print(f"  {'forecaster':<40} {'pinball-q0.9':>14} {'cov@90%':>10}")
+
+    def coverage(y_arr: np.ndarray, q_arr: np.ndarray) -> float:
+        return float(np.mean(y_arr <= q_arr))
+
+    print(f"  {'V1 LightGBM q0.9':<40} {pinball_loss(y, gbm_q90, 0.9):>14.4f} {coverage(y, gbm_q90):>10.3f}")
+    print(f"  {'V1.5 prior q0.9':<40} {pinball_loss(y, prior_q90, 0.9):>14.4f} {coverage(y, prior_q90):>10.3f}")
+    print(f"  {'V1.5 PER-QUANTILE T4 q0.9':<40} {pinball_loss(y, hybrid_q90, 0.9):>14.4f} {coverage(y, hybrid_q90):>10.3f}")
     if tfm_q90 is not None and not np.isnan(tfm_q90).all():
-        m = ~np.isnan(tfm_q90)
-        print(f"  {'V1.5 TIMESFM TAIL T6 (ours)':<32} {pinball_loss(y[m], tier6_q90[m], 0.9):>14.4f}")
+        m_tfm = ~np.isnan(tfm_q90)
+        print(f"  {'V1.5 TIMESFM TAIL T6 q0.9':<40} {pinball_loss(y[m_tfm], tier6_q90[m_tfm], 0.9):>14.4f} {coverage(y[m_tfm], tier6_q90[m_tfm]):>10.3f}")
+
+    # ── CONFORMAL CALIBRATION (Tier 7) ───────────────────────────────────
+    # Wrap the GBM's q0.9 in a finite-sample 90% coverage guarantee.
+    # Compute calibration residuals on valid; offset test q0.9 by the
+    # (1-α)-quantile of those residuals (Vovk et al. 2005).
+    print("\n  applying conformal calibration to GBM q0.9 (Tier 7)…", flush=True)
+    from bakerysense.conformal import calibrate_q_upper  # noqa: E402
+
+    # Fit q0.9 on valid for calibration. The GBM was fitted on train; valid
+    # is held out and acts as a clean calibration set.
+    gbm_valid_preds = gbm.predict_all(valid)
+    gbm_valid_preds.index = valid.index
+    gbm_valid_q90 = gbm_valid_preds["q0.9"].to_numpy()
+    valid_y_arr = valid[TARGET].to_numpy()
+
+    cal_gbm_q90, gbm_offset = calibrate_q_upper(valid_y_arr, gbm_valid_q90, gbm_q90, alpha=0.1)
+    print(f"    GBM offset = {gbm_offset:+.4f} (added to test q0.9)", flush=True)
+    print(f"  {'GBM q0.9 + CONFORMAL T7':<40} {pinball_loss(y, cal_gbm_q90, 0.9):>14.4f} {coverage(y, cal_gbm_q90):>10.3f}")
+
+    # Conformal applied to the prior q0.9 too — different beast since the
+    # prior's q0.9 is statically computed on (sku, dow). Calibration can
+    # rescue its undercoverage / overcoverage.
+    prior_valid_q90 = predict_prior(valid, prior, "q0.9")
+    cal_prior_q90, prior_offset = calibrate_q_upper(valid_y_arr, prior_valid_q90, prior_q90, alpha=0.1)
+    print(f"    Prior offset = {prior_offset:+.4f}", flush=True)
+    print(f"  {'Prior q0.9 + CONFORMAL T7':<40} {pinball_loss(y, cal_prior_q90, 0.9):>14.4f} {coverage(y, cal_prior_q90):>10.3f}")
 
     # Headline summary
     overall_naive = wape(y, naive)
