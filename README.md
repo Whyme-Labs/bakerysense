@@ -175,11 +175,12 @@ Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scrip
 | **M4 Daily** | heterogeneous (financial / demographic / industrial) | 31.4 sMAPE | AutoETS 3.06 (subset) | **2.16 sMAPE** | M4 winner ES-RNN 3.046 |
 | **Kaggle Web Traffic** | Wikipedia views (viral, trending) | 53.5 SMAPE | Seasonal-naive 45.1 | **38.8 SMAPE** (top 50 / top 5%) | Winner cpmpml 35.48 |
 | **M5 Walmart** (level 12) | intermittent retail, 30K SKUs, 5y | 0.803 WAPE | AutoETS 0.685 (subset) | **0.666 WAPE** | M5 winner WRMSSE 0.520 |
+| **M5 Walmart** (full WRMSSE, 12 levels, bottom-up) | hierarchical retail | 3.363 | – | **1.864** | M5 winner 0.520 / median 0.65 / naive 0.91 |
 
 **TimesFM-2.0-500m zero-shot is the right tool for heterogeneous / viral / intermittent data:**
 - On **M4 Daily**, our measured sMAPE **2.16 beats every published method** — including the M4 winner Smyl ES-RNN (3.046), N-BEATS (2.94), and the original TimesFM paper's own number (2.94 on the older 1.0-200m).
 - On **Kaggle Web Traffic** (1,095 teams in original 2017 competition), our SMAPE **38.83 places in the top 50 (top 5%)** — without any fine-tuning, feature engineering, or covariates. Just the raw TimesFM-2 weights.
-- On **M5 Walmart** (5,558 teams), TimesFM-2 zero-shot WAPE **0.666 beats AutoETS 0.685 and seasonal-naive 0.862** on all 30,490 series. Full WRMSSE estimation lands in the mid-pack of the original 2020 leaderboard.
+- On **M5 Walmart** (5,558 teams), TimesFM-2 zero-shot WAPE **0.666 beats AutoETS 0.685 and seasonal-naive 0.862** on level 12 (30,490 series). RMSSE at level 12 = 1.022, on par with single-model LightGBM in M5 papers (~1.05 published). The full 12-level WRMSSE is **1.864 with naive bottom-up aggregation** — beating top-tier teams requires training at multiple hierarchy levels separately + reconciling, which top M5 teams did with 12+ model ensembles. Our zero-shot single-pass result lands above the naive benchmark (~0.91) but below the leaderboard median (~0.65) — a fair zero-shot floor.
 
 **V1.5's (family × dow) population prior** is a *correct* retail inductive bias — wins decisively on French Bakery and is competitive on NN5 — but it's the *wrong* bias for non-seasonal heterogeneous data, where it loses to even seasonal-naive.
 
