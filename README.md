@@ -205,6 +205,8 @@ Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scrip
 
 **The per-quantile architecture (Tier 6) is what generalizes universally** — TimesFM-2 wins the q0.9 calibration on every dataset tested (5.3% improvement on French Bakery, 11% on NN5, 31% on Kaggle Web Traffic), so the production blend always benefits from routing the tail to it.
 
+**Architecture-vs-model attribution (the cleanest experiment, Tier 23):** drop in Amazon's `chronos-bolt-base` under the exact same Tier 21 pipeline on M5 Uncertainty — WSPL **0.1396 vs TimesFM-2's 0.1379**, within 1.2%. The wiring (per-quantile + per-level routing + tail extrapolation) carries the result. The choice of foundation model is fungible at the 1% level.
+
 The production system's value is the **wiring**: drop V1.5 in for retail tenants, drop TimesFM in for everything else, route q0.9 through TimesFM regardless. The forecast router's stage-aware blend is data-agnostic.
 
 ## License

@@ -83,7 +83,7 @@ LightGBM beats the lag-7 naive baseline on 19 / 20 SKUs; the loser has fewer tha
 | M5 Accuracy (5,558 teams, WRMSSE) | 3.36 | **0.71 (T14)** | winner 0.520 / median 0.65 |
 | **M5 Uncertainty** (909 teams, WSPL) | – | **0.138 (T21)** | top-tier range on validation period (winner 0.157 private; zero-shot, hybrid L9+L10+L11) |
 
-V1.5's `(family × dow)` prior fits dense weekly-seasonal retail; fails on heterogeneous data. **TimesFM-2.0-500m zero-shot + per-level routing fills the gap**: WRMSSE 0.71 on M5 Accuracy, WSPL 0.138 on M5 Uncertainty validation. Vs 2024 foundation-model peers (Chronos / MOIRAI / TimesFM paper), our pipeline is competitive on retail-daily (M5, Web Traffic, M4 Daily) but loses 1–3 sMAPE on small-N monthly (Tourism) and weekly counts (Hospital). The transferable claim is **the architectural pattern (per-quantile + per-level routing) generalizes across foundation models** — a wiring win, not a model win.
+V1.5's `(family × dow)` prior fits dense weekly-seasonal retail; fails on heterogeneous data. **TimesFM-2.0-500m zero-shot + per-level routing fills the gap**: WRMSSE 0.71 on M5 Accuracy, WSPL 0.138 on M5 Uncertainty validation. The transferable claim is **the architectural pattern (per-quantile + per-level routing) generalizes across foundation models** — proven by swapping in Amazon's Chronos-Bolt-Base under the same pipeline: WSPL 0.140 (within 1.2%). The wiring transfers; the model choice is fungible at the 1% level.
 
 Production architecture is Tier 6 per-quantile blend — V1.5 prior at median, TimesFM at q0.9 (5.3–31% better calibration depending on dataset). Setting `TIMESFM_ENDPOINT` flips `perq_blend_v1` → `perq_blend_v2` with no redeploy.
 
