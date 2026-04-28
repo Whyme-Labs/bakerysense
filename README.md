@@ -164,7 +164,7 @@ V1.5 population prior beats every classical baseline on the median forecast — 
 
 LightGBM beats the seasonal-naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE, FICELLE, ECLAIR) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
 
-### Cross-dataset generalization (5 benchmarks)
+### Cross-dataset generalization (8 benchmarks)
 
 Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scripts/benchmark_m4_daily.py` + `scripts/benchmark_kaggle_web_traffic.py` + `scripts/benchmark_m5.py`):
 
@@ -182,11 +182,16 @@ Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scrip
 | **M5 Walmart Uncertainty** (Tier 19: TimesFM + extrapolated tails) | as above + linear quantile extrapolation | – | – | **0.1638** | **top ~5 of 909 teams** (top 0.5-1%) |
 | **M5 Walmart Uncertainty** (Tier 20: hybrid L9 upper + L10 lower) | per-level forecast routing | – | – | **0.1427** | below winner's 0.157 on validation |
 | **M5 Walmart Uncertainty** (Tier 21: L9 + L10 + L11 routing) | 3-level hybrid | – | – | **0.1379** | top-tier range on validation period (winner 0.157 private; expected private rank: top 5–20) |
+| **M4 Monthly** (5K subset, 18-step) | broad domain monthly | – | – | sMAPE **10.20** | better than Chronos-Large 12.71 / ES-RNN 12.13 on subset (caveat: not full set) |
+| **Tourism Monthly** | tourism arrivals, 24-step | – | – | sMAPE **20.79** | worse than Chronos-Large ~18.0 / ETS 18.7 — small-N monthly isn't TimesFM's sweet spot |
+| **Hospital** | weekly counts, 12-step | – | – | MASE **0.876** | worse than Chronos / MOIRAI / TimesFM ~0.75 — weekly counts data |
 
 **TimesFM-2.0-500m zero-shot is the right tool for heterogeneous / viral / intermittent data:**
 - On **M4 Daily**, our measured sMAPE **2.16 beats every published method** — including the M4 winner Smyl ES-RNN (3.046), N-BEATS (2.94), and the original TimesFM paper's own number (2.94 on the older 1.0-200m).
 - On **Kaggle Web Traffic** (1,095 teams in original 2017 competition), our SMAPE **38.83 places in the top 50 (top 5%)** — without any fine-tuning, feature engineering, or covariates. Just the raw TimesFM-2 weights.
 - On **M5 Walmart** (5,558 teams), TimesFM-2 zero-shot WAPE **0.666 beats AutoETS 0.685 and seasonal-naive 0.862** on level 12 (30,490 series). RMSSE at level 12 = 1.022, on par with single-model LightGBM in M5 papers (~1.05 published). The naive bottom-up aggregation gives full WRMSSE 1.864.
+
+  **2024 foundation-model context (the actually-relevant 2026 comparison):** on three GIFT-Eval-class datasets we ran TimesFM-2 zero-shot directly. M4 Monthly subset sMAPE 10.2 (better than Chronos-Large 12.71, but on 5K/48K subsample). Tourism Monthly sMAPE 20.79 (worse than Chronos ~18.0). Hospital MASE 0.876 (worse than Chronos / MOIRAI / TimesFM-paper ~0.75). The honest read: zero-shot TimesFM-2 with our pipeline is **competitive with 2024 foundation-model peers on retail-daily, weaker on small-N monthly and weekly counts**. The architectural pattern (per-quantile routing, per-level top-down) is what generalizes — it's a wiring win, not a model win.
 
   **Tier 10 multi-level reconciliation** changes the picture: forecast the L1 TOTAL series with TimesFM-2 directly (just one series, RMSSE 0.598 — beats seasonal-naive 0.751 at L1), then disaggregate to all 30,490 leaves via last-28-day historical revenue shares. Result: **WRMSSE 0.800 — beats the naive benchmark (0.91-1.07) by 12.5%**.
 
