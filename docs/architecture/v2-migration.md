@@ -1,6 +1,8 @@
 # V2 forecasting architecture migration
 
-> **Status (April 2026):** Sprints 0, 1, 3, 4 shipped. Sprint 2 (TimesFM serving) is interface-locked but not yet wired to a backend.
+> **Status (April 2026):** Sprints 0–5 shipped. Tier 14 / 21 / 23 architectural pattern empirically validated across 9 published benchmarks. Production worker LIVE with Tier 4 + Tier 6 wiring; setting `TIMESFM_ENDPOINT` activates the foundation-model tail with no code redeploy.
+>
+> See [`docs/research/tier-scorecard.md`](../research/tier-scorecard.md) for the full 23-tier experimental log including all negative results.
 
 ## Why this exists
 

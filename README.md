@@ -164,7 +164,10 @@ V1.5 population prior beats every classical baseline on the median forecast — 
 
 LightGBM beats the seasonal-naive baseline on **19 of 20 SKUs**, with the largest wins on long-tail items (COOKIE, FICELLE, ECLAIR) where naive struggles most. Gemma 4 then translates these numbers into merchant-facing language via tool calls — see [`docs/demo_transcript.md`](docs/demo_transcript.md).
 
-### Cross-dataset generalization (8 benchmarks)
+### Cross-dataset generalization (9 benchmarks, 23 tiers)
+
+> Full research log + every negative result documented in [`docs/research/tier-scorecard.md`](docs/research/tier-scorecard.md).
+
 
 Same forecasters, five published benchmarks (`scripts/benchmark_nn5.py` + `scripts/benchmark_m4_daily.py` + `scripts/benchmark_kaggle_web_traffic.py` + `scripts/benchmark_m5.py`):
 
