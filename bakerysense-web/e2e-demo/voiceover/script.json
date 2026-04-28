@@ -86,7 +86,7 @@
       "voice": "Aiden",
       "speaker": "vo",
       "scenario_anchor": "broll-shot9",
-      "text": "Within two months, the model learns the bakery better than the baker remembers it."
+      "text": "Within two months, the model learns the bakery better than the baker remembers it. Validated against nine forecasting benchmarks \u2014 the architecture transfers across foundation models."
     }
   ]
 }
