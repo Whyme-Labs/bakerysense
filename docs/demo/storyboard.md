@@ -121,6 +121,7 @@ The actual playback artifact is `docs/demo/demo-final.mp4`. The Remotion composi
 | Camera | `docs/demo/broll/shot9-close.mp4`. Owner at counter, warm light. |
 | On-screen action | No app UI. |
 | Owner line | "By month two, the model knows my bakery better than I do." |
+| VO (new) | Section K of `script.md` — adds the cross-dataset validation line: "Validated against nine forecasting benchmarks — the architecture transfers across foundation models." Total VO ~10s, fits the existing 10s B-roll window. |
 
 ---
 

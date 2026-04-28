@@ -83,7 +83,7 @@ This is the longest single section — Gemma takes time to plan tool calls and s
 
 | Time | Speaker | Line |
 |---|---|---|
-| 2:08–2:18 | **[VO]** | "Within two months, the model learns the bakery better than the baker remembers it." |
+| 2:08–2:18 | **[VO]** | "Within two months, the model learns the bakery better than the baker remembers it. Validated against nine forecasting benchmarks — the architecture transfers across foundation models." |
 
 ---
 
