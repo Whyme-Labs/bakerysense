@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **🎥 Demo video** | [demo-final.mp4](https://github.com/wms2537/gemma-4-hack/blob/master/docs/demo/demo-final.mp4) (1:52, 10 MB) |
+| **🎥 Demo video** | <https://youtu.be/N_ADKVnl90w> (1:53) |
 | **🌐 Live demo** | <https://bakerysense-web.swmengappdev.workers.dev> (`demo@bakerysense.app` / `Demo2026DemoDemo` / tenant `favorita`) |
 | **💻 Repository** | <https://github.com/wms2537/gemma-4-hack> |
 | **📊 Research log** | [tier-scorecard.md](https://github.com/wms2537/gemma-4-hack/blob/master/docs/research/tier-scorecard.md) — 23 tiers, 9 datasets, all positive + negative findings |
@@ -101,7 +101,7 @@ Production architecture is Tier 6 per-quantile blend — V1.5 prior at median, T
 
 **Main + Impact:** food waste (SDG 12.3) and small-merchant economic resilience; offline-first design works in regions with unreliable connectivity. **Unsloth:** Gemma 4 E4B without fine-tuning; QLoRA on bakery vocabulary is a documented stretch goal. **Ollama:** `ollama-tunnel` connector points at `http://localhost:11434` for fully on-device inference. **llama.cpp:** the Python demo layer uses llama-cpp-python with `BAKERYSENSE_MODEL_REPO` / `_FILE` env vars pointing to the GGUF artifact.
 
-**License:** CC-BY-4.0 per Rules §2.5. **Live demo:** seeded tenant `favorita` at <https://bakerysense-web.swmengappdev.workers.dev>. Credentials: `demo@bakerysense.app / Demo2026DemoDemo`. Walkthrough: [[demo-final.mp4](https://github.com/wms2537/gemma-4-hack/blob/master/docs/demo/demo-final.mp4)](https://github.com/wms2537/gemma-4-hack/blob/master/docs/demo/demo-final.mp4).
+**License:** CC-BY-4.0 per Rules §2.5. **Live demo:** seeded tenant `favorita` at <https://bakerysense-web.swmengappdev.workers.dev>. Credentials: `demo@bakerysense.app / Demo2026DemoDemo`. Walkthrough: <https://youtu.be/N_ADKVnl90w>.
 
 ---
 
