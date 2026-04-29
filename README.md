@@ -9,14 +9,36 @@ Offline-first production decision copilot for bakeries. Submission for the [Gemm
 ## Live demo
 
 - **App:** <https://bakerysense-web.swmengappdev.workers.dev>
-- **Video:** [`docs/demo/demo-final.mp4`](docs/demo/demo-final.mp4) (~97s, storyboard in [`docs/demo/storyboard.md`](docs/demo/storyboard.md))
-- **Writeup:** [`docs/demo/writeup.md`](docs/demo/writeup.md) (≤1500 words)
+- **Video:** <https://youtu.be/N_ADKVnl90w> (1:53). Local copy: [`docs/demo/demo-final.mp4`](docs/demo/demo-final.mp4); storyboard at [`docs/demo/storyboard.md`](docs/demo/storyboard.md).
+- **Kaggle writeup:** [`kaggle-submission/writeup-for-kaggle.md`](kaggle-submission/writeup-for-kaggle.md) (≤1500 words, the version submitted)
 
 Demo credentials:
 - `demo@bakerysense.app` / `Demo2026DemoDemo` — `tenant_admin`, all 5 branches
 - `manager@bakerysense.app` / `Manager2026Manager` — `branch_manager`, 2 branches
 
-The live app runs Gemma 4 (`google/gemma-4-26b-a4b-it` via OpenRouter) end-to-end: sign in, pick a branch on the dashboard, ask "how many TRADITIONAL BAGUETTE should I bake tomorrow?" in chat. Gemma calls `forecast` + `explain_drivers` and returns a plain-language answer grounded in the JS LightGBM walker. See [`docs/deploy.md`](docs/deploy.md) for the deployment checklist.
+The live app runs Gemma 4 (`google/gemma-4-26b-a4b-it` via OpenRouter) end-to-end: sign in, pick a branch on the dashboard, ask "how many TRADITIONAL BAGUETTE should I bake tomorrow?" in chat. Gemma calls `forecast` + `explain_drivers` and returns a plain-language answer grounded in the JS LightGBM walker.
+
+> **A note on the live demo's TimesFM tail.** The hosted demo's `perq_blend_v2` (V1.5 prior + TimesFM q0.9 tail) routes to a localtunnel from the maintainer's laptop. When the laptop closes, the Worker falls back to `perq_blend_v1` (GBM tail) **automatically** — verified live; the demo never breaks. To run the full Tier 6 pipeline 24/7, self-host the TimesFM sidecar (one of three paths below). BakerySense is open source under CC-BY-4.0; we do not charge for hosting.
+
+## Self-host (BYO deploy)
+
+Two surfaces — both designed to be run on your own infrastructure with zero per-merchant cost.
+
+### a. The Cloudflare Worker (the app)
+
+End-to-end deploy checklist in [`docs/deploy.md`](docs/deploy.md): D1 + KV + R2 + Queues bindings, secret material (`SESSION_SIGNING_KEY`, `JWKS_ENCRYPTION_KEY`, `CONNECTOR_MEK`), migrations, `npm run deploy`. ~15 minutes from `wrangler login` to seeded tenant.
+
+### b. The TimesFM sidecar (optional, enables `perq_blend_v2`)
+
+The forecaster works without it (V1 LightGBM and V1.5 prior run pure-TS in the Worker). Adding TimesFM-2.0-500m for the q0.9 tail is what gets you the full Tier 6 production blend. The serving layer is in [`scripts/serve_timesfm.py`](scripts/serve_timesfm.py); set `TIMESFM_ENDPOINT` on the Worker and `perq_blend_v1` flips to `perq_blend_v2` with no redeploy.
+
+| Path | Best for | Notes |
+|---|---|---|
+| **Modal** | quickest start, free credits | `modal deploy scripts/deploy_modal.py` — one command. |
+| **Cloudflare Container** | same account as the Worker | build [`scripts/Dockerfile.timesfm`](scripts/Dockerfile.timesfm), push, bind in `wrangler.jsonc`. |
+| **Render / Replicate / any K8s** | existing infra | uvicorn entry: `scripts/serve_timesfm.py:app`. CPU-only works (~3-5s/call). |
+
+When the sidecar is up, set `TIMESFM_ENDPOINT=https://your-host` as a Worker secret. The Worker probes `/healthz` and falls back to GBM if the sidecar is down — there is no hard dependency.
 
 ## What it does
 
