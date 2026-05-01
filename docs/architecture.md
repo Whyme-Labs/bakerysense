@@ -330,6 +330,74 @@ Spec §14.3 envisions the Python retrain running inside a Cloudflare Container w
 
 `/t/[slug]/sku/[family]` renders a `<DriftBanner>` above the charts when `window=14` rolling WAPE exceeds `1.5 × baseline_wape`. Baseline is a hardcoded 0.25 fallback for MVP (R2 `baseline-metrics.json` per-tenant is future work); the banner links to `/t/[slug]/admin/retraining`.
 
+## Decision lineage (production)
+
+The KV pointer (`model:active:<tid>`) is the runtime fast path; D1's `model_versions` and `retrain_events` tables are the durable, queryable source of truth for audits, rollbacks, and reproducibility. A merchant or auditor can answer the canonical question — "which forecast version produced last Tuesday's bake plan, what trained it, and on what window?" — with a single 3-table join.
+
+### New D1 tables (`drizzle/0004_decision_lineage.sql`)
+
+```
+model_versions      tenant × kind × version_number — every trained
+                    forecaster (gbm_v1, v1_5_prior, perq_blend_v1/v2,
+                    timesfm_v2). Carries r2_key, parent_model_id,
+                    training_window, training_actuals_count,
+                    validation_metrics_json, status, activated_at,
+                    superseded_at.
+retrain_events      every retrain attempt (manual / schedule / wape_breach
+                    / ops_force / first_train). Links parent_model_id →
+                    output_model_id, with trigger metric/value/threshold,
+                    started_at / completed_at, status_message on failure.
+forecast_snapshots
+  .model_version_id additive nullable FK to model_versions.id. NEW writes
+                    populate it; existing rows stay NULL (pre-lineage
+                    sentinel — they keep working but cannot be joined
+                    end-to-end).
+```
+
+Status transitions for `model_versions`:
+
+```
+draft → active → superseded
+              ↘ rolled_back
+```
+
+Only one `active` row per `(tenant, model_kind)` invariant — `recordRetrainSucceeded` flips the parent to `superseded` atomically with the new active row insert.
+
+Status transitions for `retrain_events`:
+
+```
+queued → running → succeeded
+                 ↘ failed
+       ↘ cancelled
+```
+
+### Wiring (`src/lib/lineage.ts`)
+
+```
+getOrCreateActiveModelVersion(env, tenantId, modelKind)
+    Returns the active model_versions row, bootstrapping from KV pointer
+    if no row exists. Idempotent — concurrent callers race on the
+    (tenant, kind, version) unique index and converge.
+
+recordRetrainQueued(env, args)        called by enqueueRetrain producer
+markRetrainRunning(env, eventId)      called at top of consumer
+recordRetrainSucceeded(env, args)     atomic: insert new active model_version,
+                                       supersede parent, link retrain event
+recordRetrainFailed(env, args)        records status_message; parent stays active
+
+getDecisionLineage(env, snapshotId)   convenience join — returns
+                                       { snapshot, modelVersion, producedBy, parentModel }
+                                       for one forecast_snapshots row
+```
+
+### Tool-call audit
+
+Every Gemma tool dispatch (`forecast_point`, `explain_drivers`, `waste_risk`, `list_skus`, `suggest_markdowns`) now writes to `audit_log` with action `tool.invoked` (or `tool.failed`), input args, result summary, and latencyMs. Payloads are bounded to 4 KB per row. This closes the lineage loop: a markdown suggestion shown in chat at time T can be traced back to (a) the tool call that produced it, (b) the forecast snapshot it consulted, (c) the model version that produced the forecast, and (d) the retrain event that produced the model.
+
+### Migration safety
+
+All changes in `0004_decision_lineage.sql` are additive — two `CREATE TABLE` statements and one `ALTER TABLE ADD COLUMN`. No existing column is dropped or modified. Safe to apply to a populated production database without downtime. Existing forecast snapshots remain queryable; only newly-written rows participate in lineage joins.
+
 ## Status by module
 
 | Module | Day 1 | Week 2 | Week 3 | Week 4 |

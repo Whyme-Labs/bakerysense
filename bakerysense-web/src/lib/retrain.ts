@@ -3,16 +3,47 @@ import { getDb } from "@/db/client";
 import { dailyActuals, forecastSnapshots } from "@/db/schema";
 import { writeRetrainState } from "@/lib/model-pointer";
 import { writeAudit } from "@/lib/audit";
+import {
+  getOrCreateActiveModelVersion,
+  markRetrainRunning,
+  recordRetrainFailed,
+  recordRetrainQueued,
+  recordRetrainSucceeded,
+} from "@/lib/lineage";
 
 export interface RetrainJob {
   type: "retrain";
   tenantId: string;
   triggeredBy: "cron" | "manual";
   triggeredAt: number;
+  // Decision-lineage event id created at enqueue time. The consumer flips it
+  // running → succeeded/failed and links the output model_versions row.
+  // Optional for back-compat with pre-lineage messages still in the queue.
+  retrainEventId?: string;
 }
 
 export async function enqueueRetrain(env: CloudflareEnv, tenantId: string, triggeredBy: "cron" | "manual", actorUserId?: string): Promise<void> {
-  const job: RetrainJob = { type: "retrain", tenantId, triggeredBy, triggeredAt: Date.now() };
+  // Resolve the parent model id (the active version this retrain will replace)
+  // before queueing so the lineage event has the link from the start.
+  const parent = await getOrCreateActiveModelVersion(env, tenantId, "gbm_v1");
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const sinceIso = new Date(Date.now() - 180 * 86400_000).toISOString().slice(0, 10);
+  const lineage = await recordRetrainQueued(env, {
+    tenantId,
+    modelKind: "gbm_v1",
+    triggeredBy: triggeredBy === "cron" ? "schedule" : "manual",
+    triggeredByUserId: actorUserId,
+    parentModelId: parent?.id ?? null,
+    trainingWindowStart: sinceIso,
+    trainingWindowEnd: todayIso,
+  });
+  const job: RetrainJob = {
+    type: "retrain",
+    tenantId,
+    triggeredBy,
+    triggeredAt: Date.now(),
+    retrainEventId: lineage.id,
+  };
   // Write state + audit BEFORE enqueueing — otherwise the consumer can fire
   // before this producer's follow-up writes complete, and our "queued"
   // state overwrites the consumer's "awaiting_publish".
@@ -21,7 +52,7 @@ export async function enqueueRetrain(env: CloudflareEnv, tenantId: string, trigg
     tenantId,
     actorUserId,
     action: "retrain.enqueued",
-    metadata: { triggeredBy },
+    metadata: { triggeredBy, retrainEventId: lineage.id, parentModelId: parent?.id ?? null },
   });
   await env.RETRAIN_QUEUE.send(job);
 }
@@ -63,15 +94,53 @@ export async function uploadTrainingInputs(env: CloudflareEnv, tenantId: string,
 }
 
 // The consumer handler — called from the Worker's queue() method (or directly in tests).
+//
+// Lineage flow:
+//   queued (producer) → running (here) → succeeded (here) | failed (here)
+// On success, a new model_versions row is committed and the retrain_events
+// row is linked to it. On failure, status_message records the reason.
 export async function handleRetrainMessage(env: CloudflareEnv, job: RetrainJob): Promise<{ r2Key: string; rowCount: number }> {
-  const since = new Date(Date.now() - 180 * 86400_000).toISOString().slice(0, 10);
-  const csv = await buildTrainingCsv(env, job.tenantId, since);
-  const r2Key = await uploadTrainingInputs(env, job.tenantId, csv);
-  const rowCount = csv.split("\n").length - 1;   // minus header
-  await writeRetrainState(env, job.tenantId, {
-    status: "awaiting_publish",
-    startedAt: job.triggeredAt,
-    reason: r2Key,
-  });
-  return { r2Key, rowCount };
+  if (job.retrainEventId) {
+    await markRetrainRunning(env, job.retrainEventId);
+  }
+  const sinceIso = new Date(Date.now() - 180 * 86400_000).toISOString().slice(0, 10);
+  const todayIso = new Date(job.triggeredAt).toISOString().slice(0, 10);
+  try {
+    const csv = await buildTrainingCsv(env, job.tenantId, sinceIso);
+    const r2Key = await uploadTrainingInputs(env, job.tenantId, csv);
+    const rowCount = csv.split("\n").length - 1;   // minus header
+    await writeRetrainState(env, job.tenantId, {
+      status: "awaiting_publish",
+      startedAt: job.triggeredAt,
+      reason: r2Key,
+    });
+    if (job.retrainEventId) {
+      // Determine the parent model so we can record supersession.
+      const parent = await getOrCreateActiveModelVersion(env, job.tenantId, "gbm_v1");
+      await recordRetrainSucceeded(env, {
+        eventId: job.retrainEventId,
+        tenantId: job.tenantId,
+        modelKind: "gbm_v1",
+        parentModelId: parent?.id ?? null,
+        // The training pipeline produces an inputs CSV here; the actual model
+        // artifact is published by the operator-side training step (Python
+        // notebook → R2). r2Key recorded here is the inputs blob, useful for
+        // provenance even before the artifact lands.
+        r2Key,
+        trainingWindowStart: sinceIso,
+        trainingWindowEnd: todayIso,
+        trainingActualsCount: rowCount,
+        notes: "training inputs exported; awaiting operator publish",
+      });
+    }
+    return { r2Key, rowCount };
+  } catch (e) {
+    if (job.retrainEventId) {
+      await recordRetrainFailed(env, {
+        eventId: job.retrainEventId,
+        reason: e instanceof Error ? e.message : String(e),
+      });
+    }
+    throw e;
+  }
 }
