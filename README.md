@@ -62,7 +62,15 @@ explain.py          SHAP drivers via LightGBM native pred_contrib
 eval.py             MASE / WAPE / pinball vs seasonal-naive baseline
 ```
 
-See [docs/architecture.md](docs/architecture.md) for module-level detail.
+**Decision-centric, not data-centric.** Data, forecast logic, baker action, and tenant security live in one Worker with end-to-end decision lineage:
+
+- `model_versions` — durable registry of every trained forecaster (parent_model_id, training_window, validation_metrics, status). Bootstrapped lazily from the KV pointer for existing tenants.
+- `retrain_events` — every retrain attempt (manual / scheduled / WAPE-breach) with parent → output linkage and status_message on failure.
+- `forecast_snapshots.model_version_id` — additive FK so any bake plan traces back to the model and training window that produced it.
+- `audit_log` — every Gemma tool dispatch (`forecast_point`, `explain_drivers`, …) with input args, result summary, and latency. Closes the loop from markdown suggestion back to the forecast.
+- `GET /api/admin/lineage[/:snapshotId]` and the *Decision lineage* panel in the Model tab surface the chain for tenant_admins.
+
+See [docs/architecture.md](docs/architecture.md) for module-level detail and the *Decision lineage (production)* section for the full schema, endpoints, and SQL view (`decision_lineage_v`).
 
 ## Quickstart
 
