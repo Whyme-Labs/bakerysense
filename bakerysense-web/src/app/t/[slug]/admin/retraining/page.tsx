@@ -7,12 +7,17 @@ import { RetrainingHistory } from "@/components/admin/RetrainingHistory";
 import { TriggerRetrainButton } from "@/components/admin/TriggerRetrainButton";
 import { ImportActualsCsv } from "@/components/admin/ImportActualsCsv";
 import { ModelInfoPanel } from "@/components/admin/ModelInfoPanel";
+import {
+  DecisionLineagePanel,
+  type ModelVersionRow,
+  type RetrainEventRow,
+} from "@/components/admin/DecisionLineagePanel";
 import { readActive, readVersions, readRetrainState } from "@/lib/model-pointer";
 import { loadTenantModels } from "@/lib/features";
 import { loadTrees } from "@/lib/gbm-walker";
 import { getDb } from "@/db/client";
-import { branches, dailyActuals } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { branches, dailyActuals, modelVersions, retrainEvents } from "@/db/schema";
+import { desc, eq, sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
@@ -76,14 +81,65 @@ export default async function RetrainingAdminPage({ params }: { params: Promise<
     redirect(`/t/${slug}/dashboard`);
   }
   const tid = session.claims.tid;
-  const [active, versions, state, branchRows, modelMeta, training] = await Promise.all([
+  const [active, versions, state, branchRows, modelMeta, training, mvRows, evRows] = await Promise.all([
     readActive(env, tid),
     readVersions(env, tid),
     readRetrainState(env, tid),
     getDb(env).select().from(branches).where(eq(branches.tenantId, tid)).all(),
     loadModelMeta(env, tid),
     loadTrainingStats(env, tid),
+    getDb(env)
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.tenantId, tid))
+      .orderBy(desc(modelVersions.createdAt))
+      .limit(20)
+      .all(),
+    getDb(env)
+      .select()
+      .from(retrainEvents)
+      .where(eq(retrainEvents.tenantId, tid))
+      .orderBy(desc(retrainEvents.createdAt))
+      .limit(20)
+      .all(),
   ]);
+
+  const lineageVersions: ModelVersionRow[] = mvRows.map((v) => ({
+    id: v.id,
+    modelKind: v.modelKind,
+    versionNumber: v.versionNumber,
+    r2Key: v.r2Key,
+    parentModelId: v.parentModelId,
+    trainedAt: v.trainedAt,
+    trainingWindowStart: v.trainingWindowStart,
+    trainingWindowEnd: v.trainingWindowEnd,
+    trainingActualsCount: v.trainingActualsCount,
+    validationMetrics: v.validationMetricsJson
+      ? (JSON.parse(v.validationMetricsJson) as Record<string, number>)
+      : null,
+    status: v.status,
+    activatedAt: v.activatedAt,
+    supersededAt: v.supersededAt,
+    notes: v.notes,
+    createdAt: v.createdAt,
+  }));
+  const lineageEvents: RetrainEventRow[] = evRows.map((e) => ({
+    id: e.id,
+    modelKind: e.modelKind,
+    triggeredBy: e.triggeredBy,
+    triggerMetric: e.triggerMetric,
+    triggerValue: e.triggerValue,
+    triggerThreshold: e.triggerThreshold,
+    outputModelId: e.outputModelId,
+    parentModelId: e.parentModelId,
+    trainingWindowStart: e.trainingWindowStart,
+    trainingWindowEnd: e.trainingWindowEnd,
+    status: e.status,
+    statusMessage: e.statusMessage,
+    startedAt: e.startedAt,
+    completedAt: e.completedAt,
+    createdAt: e.createdAt,
+  }));
   const branchList = branchRows.map((b) => ({ id: b.id, name: b.name }));
   const latestVersion = versions[0];
   const rollingWape = latestVersion?.metrics?.rollingWape ?? null;
@@ -117,6 +173,7 @@ export default async function RetrainingAdminPage({ params }: { params: Promise<
         </div>
         <RetrainingHistory active={active} versions={versions} state={state} />
       </section>
+      <DecisionLineagePanel modelVersions={lineageVersions} retrainEvents={lineageEvents} />
       <section className="rounded-lg border border-[var(--border)] bg-white p-6 shadow-[var(--shadow-sm)]">
         <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-[var(--ink-subtle)]">Import actuals</h2>
         <ImportActualsCsv branches={branchList} />

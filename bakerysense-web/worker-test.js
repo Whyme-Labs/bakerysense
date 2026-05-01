@@ -291,6 +291,22 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// GET /api/admin/lineage  (literal match before :snapshotId regex)
+		if (url.pathname === "/api/admin/lineage") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/admin/lineage/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/admin/lineage/:snapshotId
+		const mLineageSnap = url.pathname.match(/^\/api\/admin\/lineage\/([^/]+)$/);
+		if (mLineageSnap && request.method === "GET") {
+			const mod = await import("./src/app/api/admin/lineage/[snapshotId]/route.ts");
+			return mod.GET(request, { params: Promise.resolve({ snapshotId: mLineageSnap[1] }) });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };

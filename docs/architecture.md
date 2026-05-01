@@ -398,6 +398,34 @@ Every Gemma tool dispatch (`forecast_point`, `explain_drivers`, `waste_risk`, `l
 
 All changes in `0004_decision_lineage.sql` are additive — two `CREATE TABLE` statements and one `ALTER TABLE ADD COLUMN`. No existing column is dropped or modified. Safe to apply to a populated production database without downtime. Existing forecast snapshots remain queryable; only newly-written rows participate in lineage joins.
 
+### Convenience view (`drizzle/0005_decision_lineage_view.sql`)
+
+`decision_lineage_v` flattens the three-table chain into one row per snapshot for ad-hoc audit queries via `wrangler d1 execute`. The application code uses `getDecisionLineage()` for the same join in TypeScript; the view exists for SOC2 reporting and one-off operator queries where firing up the Worker is overkill. Pre-lineage rows (NULL `model_version_id`) appear with NULL columns from the joined sides, so a tenant can count "% of decisions with full lineage" trivially:
+
+```sql
+SELECT COUNT(*) FILTER (WHERE model_version_id IS NOT NULL) AS linked,
+       COUNT(*)                                              AS total
+FROM decision_lineage_v
+WHERE tenant_id = '<tid>';
+```
+
+### REST endpoints
+
+```
+GET /api/admin/lineage                  list recent model_versions + retrain_events
+                                        for the caller's tenant. ?limit=N (default 20, max 100).
+GET /api/admin/lineage/:snapshotId      full chain for one forecast snapshot —
+                                        snapshot, modelVersion, producedBy, parentModel.
+                                        404 if the snapshot belongs to a different tenant
+                                        (no information leak).
+```
+
+Both endpoints are tenant_admin only and tenant-scoped. Unauthenticated callers get 401; cross-tenant snapshot lookups get 404 (not 403, to avoid leaking the existence of out-of-tenant ids).
+
+### UI surface
+
+`/t/[slug]/admin/retraining` (the Model tab) renders `DecisionLineagePanel` below `RetrainingHistory`. The panel shows two tables — model versions (active/superseded with training window, actuals count, validation metrics) and retrain events (queued/running/succeeded/failed with trigger metric and status message) — fetched server-side from D1. The KV-backed `RetrainingHistory` is the runtime fast path; the lineage panel is the durable source of truth.
+
 ## Status by module
 
 | Module | Day 1 | Week 2 | Week 3 | Week 4 |
