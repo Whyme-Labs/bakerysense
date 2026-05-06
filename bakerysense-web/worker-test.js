@@ -316,6 +316,15 @@ export default {
 			return mod.GET(request, { params: Promise.resolve({ snapshotId: mLineageSnap[1] }) });
 		}
 
+		// POST /api/bake-plans/commit
+		if (url.pathname === "/api/bake-plans/commit") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/bake-plans/commit/route.ts");
+				return mod.POST(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 };

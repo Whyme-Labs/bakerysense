@@ -16,7 +16,9 @@ export type AuditAction =
 	// Decision lineage — every Gemma tool invocation lands here with input
 	// args and a result summary, so a merchant or auditor can replay why
 	// any markdown / forecast explanation was suggested.
-	| "tool.invoked" | "tool.failed";
+	| "tool.invoked" | "tool.failed"
+	// Bake plan decision committed by the operator (Stage 5 agentic decision support).
+	| "bake_plan.committed" | "bake_plan.commit_failed";
 
 export async function writeAudit(
 	env: CloudflareEnv,
