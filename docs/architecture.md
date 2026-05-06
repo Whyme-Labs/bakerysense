@@ -426,6 +426,83 @@ Both endpoints are tenant_admin only and tenant-scoped. Unauthenticated callers 
 
 `/t/[slug]/admin/retraining` (the Model tab) renders `DecisionLineagePanel` below `RetrainingHistory`. The panel shows two tables — model versions (active/superseded with training window, actuals count, validation metrics) and retrain events (queued/running/succeeded/failed with trigger metric and status message) — fetched server-side from D1. The KV-backed `RetrainingHistory` is the runtime fast path; the lineage panel is the durable source of truth.
 
+## Three-options bake plan (Stage 4 + 5)
+
+The maturity ladder from analytics → forecast → recommendation → simulation → agentic decision support has stages 1-3 covered by the existing dashboard / forecast / newsvendor pipeline. **This layer adds Stage 4 (simulation) and Stage 5 (agentic decision support)** for one specific operator moment: the morning bake plan.
+
+The product framing is structural: quantile-newsvendor under demand uncertainty is mathematically unsolvable in head, regardless of operator competence. Workflow optimisation (inventory checklists, staff scheduling, bookkeeping) is deliberately out of scope — those are individual-competence problems, not structural ones.
+
+### What it does
+
+Dashboard SKU rows go from one number ("bake 116") to three options (conservative / balanced / aggressive) with expected waste, expected stockout probability, and expected units sold per option. The operator clicks Commit; the choice is recorded in `bake_plan_decisions` with full lineage linkage back to the forecast snapshot and the model version that produced it. Gemma narrates the tradeoff via the `narrate_plan_options` tool.
+
+### Schema (`drizzle/0006_bake_plan_decisions.sql`)
+
+```
+bake_plan_decisions    one row per (tenant, branch, family, date) — the
+                        committed choice, idempotent on re-commit. Carries
+                        option_kind (conservative/balanced/aggressive/custom),
+                        bake_quantity, expected_* outcomes at commit time
+                        (TEXT for fp safety), and lineage FKs to
+                        forecast_snapshots and model_versions. A CHECK
+                        constraint enforces that those two FKs are NULL
+                        together or set together — no half-linked rows.
+```
+
+### Engine (`src/lib/simulation.ts` + `src/lib/plan-options.ts`)
+
+```
+simulateOutcome(q, bake)   → { expectedWasteUnits, expectedStockoutProb, expectedUnitsSold }
+                              Pure-math integral over the quantile forecast.
+                              Piecewise-linear / uniform-on-segment between
+                              adjacent quantile pairs, with head/tail slope
+                              extension clamped to non-negative demand.
+interpolateQuantile(q, p)  → demand value at probability p (shared with
+                              plan-options.ts to keep the two in sync).
+generatePlanOptions(q, c)  → { conservative, balanced, aggressive } each
+                              annotated with simulateOutcome. balancedTarget
+                              is the newsvendor optimum Cu/(Cu+Co), clamped
+                              to [0.3, 0.8] so monotonicity is preserved at
+                              extreme cost ratios. Throws on cu+co<=0.
+```
+
+### REST endpoints
+
+```
+GET  /api/forecast/plans?branch=<id>&date=<YYYY-MM-DD>
+                                        list 3 options per SKU. Reuses the
+                                        forecast tool dispatch internally
+                                        (auth, branch scope, cold-start).
+                                        Defaults cost_ratio to {1,1} when
+                                        tenant config is absent.
+POST /api/bake-plans/commit             record the operator's choice. Idempotent
+                                        on (tenant, branch, family, date).
+                                        RBAC: tenant_admin or branch_manager.
+                                        CSRF required. Cross-tenant
+                                        forecast_snapshot_id → 404. Audit
+                                        emits bake_plan.committed; D1 errors
+                                        emit bake_plan.commit_failed.
+```
+
+### Gemma tool
+
+`narrate_plan_options { sku, on_date, branch_id }` — dispatches the existing `forecast` tool internally to fetch quantiles, runs `generatePlanOptions`, returns 3 options each with a deterministic baker-language narration scaffold (e.g. *"Balanced — bake 116. ~18 units expected unsold, 25% chance you run out."*). The tool itself never calls an LLM; Gemma's chat layer narrates from the scaffolds.
+
+### UI surface
+
+`/t/[slug]/dashboard` renders `PlanOptions` (client component) above `BakePlanTable`. PlanOptions fetches `/api/forecast/plans` on mount, renders a 3-card layout per SKU, and posts to `/api/bake-plans/commit` on click with optimistic UI. `CommittedBadge` (server component) shows the chosen kind + quantity once committed; the page server-fetches already-committed rows for (branch, date) on initial paint so badges appear without a flash.
+
+### What's deliberately deferred
+
+- Weather sensitivity replan
+- Markdown-timing simulation
+- Supplier-shock scenarios
+- Side-by-side multi-SKU compare
+- Cost-ratio sliders
+- Currency support (outcomes are in units; price integration is a follow-up)
+
+Each is a candidate follow-up plan once v1 is validated by a real merchant.
+
 ## Status by module
 
 | Module | Day 1 | Week 2 | Week 3 | Week 4 |

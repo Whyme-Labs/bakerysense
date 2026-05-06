@@ -67,10 +67,13 @@ eval.py             MASE / WAPE / pinball vs seasonal-naive baseline
 - `model_versions` — durable registry of every trained forecaster (parent_model_id, training_window, validation_metrics, status). Bootstrapped lazily from the KV pointer for existing tenants.
 - `retrain_events` — every retrain attempt (manual / scheduled / WAPE-breach) with parent → output linkage and status_message on failure.
 - `forecast_snapshots.model_version_id` — additive FK so any bake plan traces back to the model and training window that produced it.
-- `audit_log` — every Gemma tool dispatch (`forecast_point`, `explain_drivers`, …) with input args, result summary, and latency. Closes the loop from markdown suggestion back to the forecast.
+- `bake_plan_decisions` — every committed three-options bake plan with the chosen `option_kind` and lineage FKs to `forecast_snapshots` + `model_versions` (CHECK-constrained to travel together).
+- `audit_log` — every Gemma tool dispatch (`forecast`, `narrate_plan_options`, `explain_drivers`, …) with input args, result summary, and latency. Closes the loop from a markdown suggestion or bake choice back to the forecast.
 - `GET /api/admin/lineage[/:snapshotId]` and the *Decision lineage* panel in the Model tab surface the chain for tenant_admins.
 
-See [docs/architecture.md](docs/architecture.md) for module-level detail and the *Decision lineage (production)* section for the full schema, endpoints, and SQL view (`decision_lineage_v`).
+**Stage 4 + 5 — three-options bake plan.** The dashboard SKU row goes from one number to three narrated options (conservative / balanced / aggressive) with expected waste, stockout probability, and units sold from a pure-TS quantile-newsvendor simulation engine (`src/lib/simulation.ts`). The operator commits one; Gemma narrates tradeoffs via the `narrate_plan_options` tool.
+
+See [docs/architecture.md](docs/architecture.md) for module-level detail and the *Decision lineage (production)* + *Three-options bake plan* sections for the full schema, endpoints, simulation engine, and SQL view (`decision_lineage_v`).
 
 ## Quickstart
 
