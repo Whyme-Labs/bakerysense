@@ -164,6 +164,15 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// GET /api/forecast/plans — must match BEFORE /api/forecast/:family
+		if (url.pathname === "/api/forecast/plans") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/forecast/plans/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		// GET /api/forecast/:family
 		const mForecastFamily = url.pathname.match(/^\/api\/forecast\/([^/]+)$/);
 		if (mForecastFamily && request.method === "GET") {
