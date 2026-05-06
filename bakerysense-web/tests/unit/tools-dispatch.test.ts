@@ -34,9 +34,9 @@ describe("tools dispatch", () => {
       }
     }
   });
-  it("tool registry contains exactly the expected 5 tools", () => {
+  it("tool registry contains exactly the expected 6 tools", () => {
     expect(Object.keys(TOOL_REGISTRY).sort()).toEqual(
-      ["explain_drivers", "forecast", "list_skus", "suggest_markdowns", "waste_risk"]
+      ["explain_drivers", "forecast", "list_skus", "narrate_plan_options", "suggest_markdowns", "waste_risk"]
     );
   });
 });
