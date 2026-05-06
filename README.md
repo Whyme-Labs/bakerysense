@@ -1,7 +1,7 @@
 # BakerySense
 
 [![License: CC-BY-4.0](https://img.shields.io/badge/License-CC--BY--4.0-lightgrey.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-172%20passing-brightgreen)](./tests)
+[![Tests](https://img.shields.io/badge/tests-203%20passing-brightgreen)](./tests)
 [![Gemma 4](https://img.shields.io/badge/Gemma%204-E4B%20Q4__K__M-orange)](https://ollama.com/library/gemma4)
 
 Offline-first production decision copilot for bakeries. Submission for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-4-good-hackathon) (deadline **2026-05-18**).
