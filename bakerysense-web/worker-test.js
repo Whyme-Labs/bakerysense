@@ -164,6 +164,15 @@ export default {
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 
+		// GET /api/forecast/plans — must match BEFORE /api/forecast/:family
+		if (url.pathname === "/api/forecast/plans") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/forecast/plans/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
 		// GET /api/forecast/:family
 		const mForecastFamily = url.pathname.match(/^\/api\/forecast\/([^/]+)$/);
 		if (mForecastFamily && request.method === "GET") {
@@ -288,6 +297,31 @@ export default {
 		// POST /api/admin/seed-demo
 		if (url.pathname === "/api/admin/seed-demo") {
 			if (request.method === "POST") return seedDemoPOST(request);
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/admin/lineage  (literal match before :snapshotId regex)
+		if (url.pathname === "/api/admin/lineage") {
+			if (request.method === "GET") {
+				const mod = await import("./src/app/api/admin/lineage/route.ts");
+				return mod.GET(request);
+			}
+			return new Response("Method Not Allowed", { status: 405 });
+		}
+
+		// GET /api/admin/lineage/:snapshotId
+		const mLineageSnap = url.pathname.match(/^\/api\/admin\/lineage\/([^/]+)$/);
+		if (mLineageSnap && request.method === "GET") {
+			const mod = await import("./src/app/api/admin/lineage/[snapshotId]/route.ts");
+			return mod.GET(request, { params: Promise.resolve({ snapshotId: mLineageSnap[1] }) });
+		}
+
+		// POST /api/bake-plans/commit
+		if (url.pathname === "/api/bake-plans/commit") {
+			if (request.method === "POST") {
+				const mod = await import("./src/app/api/bake-plans/commit/route.ts");
+				return mod.POST(request);
+			}
 			return new Response("Method Not Allowed", { status: 405 });
 		}
 

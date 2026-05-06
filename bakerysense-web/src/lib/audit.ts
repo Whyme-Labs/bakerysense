@@ -12,7 +12,13 @@ export type AuditAction =
 	| "user.invited" | "member.role_changed" | "member.removed"
 	| "user.password_changed"
 	| "actuals.recorded" | "actuals.updated" | "actuals.deleted" | "actuals.bulk_imported"
-	| "retrain.enqueued" | "retrain.published" | "retrain.aborted" | "drift.detected";
+	| "retrain.enqueued" | "retrain.published" | "retrain.aborted" | "drift.detected"
+	// Decision lineage — every Gemma tool invocation lands here with input
+	// args and a result summary, so a merchant or auditor can replay why
+	// any markdown / forecast explanation was suggested.
+	| "tool.invoked" | "tool.failed"
+	// Bake plan decision committed by the operator (Stage 5 agentic decision support).
+	| "bake_plan.committed" | "bake_plan.commit_failed";
 
 export async function writeAudit(
 	env: CloudflareEnv,

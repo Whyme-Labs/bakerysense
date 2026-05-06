@@ -1,7 +1,13 @@
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
+import { and, eq } from "drizzle-orm";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { resolveSession } from "@/lib/auth/session";
+import { getDb } from "@/db/client";
+import { bakePlanDecisions } from "@/db/schema";
 import { TenantHeader } from "@/components/shell/TenantHeader";
 import { BakePlanTable } from "@/components/forecast/BakePlanTable";
 import { CloseOutDayTrigger } from "@/components/feedback/CloseOutDayDialog";
+import { PlanOptions } from "@/components/dashboard/PlanOptions";
 
 interface SearchParams { branch?: string; on_date?: string }
 
@@ -63,6 +69,35 @@ export default async function DashboardPage({
   ]);
   const wapeByFamily = new Map(metrics.entries.map((e) => [e.family, { wape: e.wape, sampleCount: e.sampleCount }]));
   const closeOutRows = data.forecasts.map((f) => ({ sku: f.sku, recommendedBake: f.bake_quantity }));
+
+  // Server-side fetch of already-committed plans + CSRF for the client commit
+  // call. Lets the page render committed badges on initial paint without a
+  // round-trip flash. Failure is non-fatal — empty state degrades gracefully.
+  const { env } = getCloudflareContext();
+  const req = new Request("http://localhost/internal", { headers: h });
+  const session = await resolveSession(env, req);
+  let committedRows: Array<{ family: string; optionKind: string; bakeQuantity: number; committedAt: number }> = [];
+  if (session) {
+    const db = getDb(env);
+    const rows = await db
+      .select({
+        family: bakePlanDecisions.family,
+        optionKind: bakePlanDecisions.optionKind,
+        bakeQuantity: bakePlanDecisions.bakeQuantity,
+        committedAt: bakePlanDecisions.committedAt,
+      })
+      .from(bakePlanDecisions)
+      .where(and(
+        eq(bakePlanDecisions.tenantId, session.claims.tid),
+        eq(bakePlanDecisions.branchId, branch),
+        eq(bakePlanDecisions.date, onDate),
+      ))
+      .all();
+    committedRows = rows;
+  }
+  const cookieJar = await cookies();
+  const csrfToken = cookieJar.get("bs_csrf")?.value ?? "";
+
   return (
     <>
       <TenantHeader slug={slug} />
@@ -79,6 +114,12 @@ export default async function DashboardPage({
           </a>
         </div>
       </div>
+      <PlanOptions
+        branchId={branch}
+        date={onDate}
+        csrfToken={csrfToken}
+        initialCommitted={committedRows}
+      />
       <BakePlanTable rows={data.forecasts} slug={slug} branch={branch} onDate={onDate} wapeByFamily={wapeByFamily} />
     </>
   );

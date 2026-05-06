@@ -330,6 +330,179 @@ Spec §14.3 envisions the Python retrain running inside a Cloudflare Container w
 
 `/t/[slug]/sku/[family]` renders a `<DriftBanner>` above the charts when `window=14` rolling WAPE exceeds `1.5 × baseline_wape`. Baseline is a hardcoded 0.25 fallback for MVP (R2 `baseline-metrics.json` per-tenant is future work); the banner links to `/t/[slug]/admin/retraining`.
 
+## Decision lineage (production)
+
+The KV pointer (`model:active:<tid>`) is the runtime fast path; D1's `model_versions` and `retrain_events` tables are the durable, queryable source of truth for audits, rollbacks, and reproducibility. A merchant or auditor can answer the canonical question — "which forecast version produced last Tuesday's bake plan, what trained it, and on what window?" — with a single 3-table join.
+
+### New D1 tables (`drizzle/0004_decision_lineage.sql`)
+
+```
+model_versions      tenant × kind × version_number — every trained
+                    forecaster (gbm_v1, v1_5_prior, perq_blend_v1/v2,
+                    timesfm_v2). Carries r2_key, parent_model_id,
+                    training_window, training_actuals_count,
+                    validation_metrics_json, status, activated_at,
+                    superseded_at.
+retrain_events      every retrain attempt (manual / schedule / wape_breach
+                    / ops_force / first_train). Links parent_model_id →
+                    output_model_id, with trigger metric/value/threshold,
+                    started_at / completed_at, status_message on failure.
+forecast_snapshots
+  .model_version_id additive nullable FK to model_versions.id. NEW writes
+                    populate it; existing rows stay NULL (pre-lineage
+                    sentinel — they keep working but cannot be joined
+                    end-to-end).
+```
+
+Status transitions for `model_versions`:
+
+```
+draft → active → superseded
+              ↘ rolled_back
+```
+
+Only one `active` row per `(tenant, model_kind)` invariant — `recordRetrainSucceeded` flips the parent to `superseded` atomically with the new active row insert.
+
+Status transitions for `retrain_events`:
+
+```
+queued → running → succeeded
+                 ↘ failed
+       ↘ cancelled
+```
+
+### Wiring (`src/lib/lineage.ts`)
+
+```
+getOrCreateActiveModelVersion(env, tenantId, modelKind)
+    Returns the active model_versions row, bootstrapping from KV pointer
+    if no row exists. Idempotent — concurrent callers race on the
+    (tenant, kind, version) unique index and converge.
+
+recordRetrainQueued(env, args)        called by enqueueRetrain producer
+markRetrainRunning(env, eventId)      called at top of consumer
+recordRetrainSucceeded(env, args)     atomic: insert new active model_version,
+                                       supersede parent, link retrain event
+recordRetrainFailed(env, args)        records status_message; parent stays active
+
+getDecisionLineage(env, snapshotId)   convenience join — returns
+                                       { snapshot, modelVersion, producedBy, parentModel }
+                                       for one forecast_snapshots row
+```
+
+### Tool-call audit
+
+Every Gemma tool dispatch (`forecast_point`, `explain_drivers`, `waste_risk`, `list_skus`, `suggest_markdowns`) now writes to `audit_log` with action `tool.invoked` (or `tool.failed`), input args, result summary, and latencyMs. Payloads are bounded to 4 KB per row. This closes the lineage loop: a markdown suggestion shown in chat at time T can be traced back to (a) the tool call that produced it, (b) the forecast snapshot it consulted, (c) the model version that produced the forecast, and (d) the retrain event that produced the model.
+
+### Migration safety
+
+All changes in `0004_decision_lineage.sql` are additive — two `CREATE TABLE` statements and one `ALTER TABLE ADD COLUMN`. No existing column is dropped or modified. Safe to apply to a populated production database without downtime. Existing forecast snapshots remain queryable; only newly-written rows participate in lineage joins.
+
+### Convenience view (`drizzle/0005_decision_lineage_view.sql`)
+
+`decision_lineage_v` flattens the three-table chain into one row per snapshot for ad-hoc audit queries via `wrangler d1 execute`. The application code uses `getDecisionLineage()` for the same join in TypeScript; the view exists for SOC2 reporting and one-off operator queries where firing up the Worker is overkill. Pre-lineage rows (NULL `model_version_id`) appear with NULL columns from the joined sides, so a tenant can count "% of decisions with full lineage" trivially:
+
+```sql
+SELECT COUNT(*) FILTER (WHERE model_version_id IS NOT NULL) AS linked,
+       COUNT(*)                                              AS total
+FROM decision_lineage_v
+WHERE tenant_id = '<tid>';
+```
+
+### REST endpoints
+
+```
+GET /api/admin/lineage                  list recent model_versions + retrain_events
+                                        for the caller's tenant. ?limit=N (default 20, max 100).
+GET /api/admin/lineage/:snapshotId      full chain for one forecast snapshot —
+                                        snapshot, modelVersion, producedBy, parentModel.
+                                        404 if the snapshot belongs to a different tenant
+                                        (no information leak).
+```
+
+Both endpoints are tenant_admin only and tenant-scoped. Unauthenticated callers get 401; cross-tenant snapshot lookups get 404 (not 403, to avoid leaking the existence of out-of-tenant ids).
+
+### UI surface
+
+`/t/[slug]/admin/retraining` (the Model tab) renders `DecisionLineagePanel` below `RetrainingHistory`. The panel shows two tables — model versions (active/superseded with training window, actuals count, validation metrics) and retrain events (queued/running/succeeded/failed with trigger metric and status message) — fetched server-side from D1. The KV-backed `RetrainingHistory` is the runtime fast path; the lineage panel is the durable source of truth.
+
+## Three-options bake plan (Stage 4 + 5)
+
+The maturity ladder from analytics → forecast → recommendation → simulation → agentic decision support has stages 1-3 covered by the existing dashboard / forecast / newsvendor pipeline. **This layer adds Stage 4 (simulation) and Stage 5 (agentic decision support)** for one specific operator moment: the morning bake plan.
+
+The product framing is structural: quantile-newsvendor under demand uncertainty is mathematically unsolvable in head, regardless of operator competence. Workflow optimisation (inventory checklists, staff scheduling, bookkeeping) is deliberately out of scope — those are individual-competence problems, not structural ones.
+
+### What it does
+
+Dashboard SKU rows go from one number ("bake 116") to three options (conservative / balanced / aggressive) with expected waste, expected stockout probability, and expected units sold per option. The operator clicks Commit; the choice is recorded in `bake_plan_decisions` with full lineage linkage back to the forecast snapshot and the model version that produced it. Gemma narrates the tradeoff via the `narrate_plan_options` tool.
+
+### Schema (`drizzle/0006_bake_plan_decisions.sql`)
+
+```
+bake_plan_decisions    one row per (tenant, branch, family, date) — the
+                        committed choice, idempotent on re-commit. Carries
+                        option_kind (conservative/balanced/aggressive/custom),
+                        bake_quantity, expected_* outcomes at commit time
+                        (TEXT for fp safety), and lineage FKs to
+                        forecast_snapshots and model_versions. A CHECK
+                        constraint enforces that those two FKs are NULL
+                        together or set together — no half-linked rows.
+```
+
+### Engine (`src/lib/simulation.ts` + `src/lib/plan-options.ts`)
+
+```
+simulateOutcome(q, bake)   → { expectedWasteUnits, expectedStockoutProb, expectedUnitsSold }
+                              Pure-math integral over the quantile forecast.
+                              Piecewise-linear / uniform-on-segment between
+                              adjacent quantile pairs, with head/tail slope
+                              extension clamped to non-negative demand.
+interpolateQuantile(q, p)  → demand value at probability p (shared with
+                              plan-options.ts to keep the two in sync).
+generatePlanOptions(q, c)  → { conservative, balanced, aggressive } each
+                              annotated with simulateOutcome. balancedTarget
+                              is the newsvendor optimum Cu/(Cu+Co), clamped
+                              to [0.3, 0.8] so monotonicity is preserved at
+                              extreme cost ratios. Throws on cu+co<=0.
+```
+
+### REST endpoints
+
+```
+GET  /api/forecast/plans?branch=<id>&date=<YYYY-MM-DD>
+                                        list 3 options per SKU. Reuses the
+                                        forecast tool dispatch internally
+                                        (auth, branch scope, cold-start).
+                                        Defaults cost_ratio to {1,1} when
+                                        tenant config is absent.
+POST /api/bake-plans/commit             record the operator's choice. Idempotent
+                                        on (tenant, branch, family, date).
+                                        RBAC: tenant_admin or branch_manager.
+                                        CSRF required. Cross-tenant
+                                        forecast_snapshot_id → 404. Audit
+                                        emits bake_plan.committed; D1 errors
+                                        emit bake_plan.commit_failed.
+```
+
+### Gemma tool
+
+`narrate_plan_options { sku, on_date, branch_id }` — dispatches the existing `forecast` tool internally to fetch quantiles, runs `generatePlanOptions`, returns 3 options each with a deterministic baker-language narration scaffold (e.g. *"Balanced — bake 116. ~18 units expected unsold, 25% chance you run out."*). The tool itself never calls an LLM; Gemma's chat layer narrates from the scaffolds.
+
+### UI surface
+
+`/t/[slug]/dashboard` renders `PlanOptions` (client component) above `BakePlanTable`. PlanOptions fetches `/api/forecast/plans` on mount, renders a 3-card layout per SKU, and posts to `/api/bake-plans/commit` on click with optimistic UI. `CommittedBadge` (server component) shows the chosen kind + quantity once committed; the page server-fetches already-committed rows for (branch, date) on initial paint so badges appear without a flash.
+
+### What's deliberately deferred
+
+- Weather sensitivity replan
+- Markdown-timing simulation
+- Supplier-shock scenarios
+- Side-by-side multi-SKU compare
+- Cost-ratio sliders
+- Currency support (outcomes are in units; price integration is a follow-up)
+
+Each is a candidate follow-up plan once v1 is validated by a real merchant.
+
 ## Status by module
 
 | Module | Day 1 | Week 2 | Week 3 | Week 4 |
