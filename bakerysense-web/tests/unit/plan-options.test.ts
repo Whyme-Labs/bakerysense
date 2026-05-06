@@ -37,4 +37,23 @@ describe("plan options generator", () => {
 		expect(opts.balanced.kind).toBe("balanced");
 		expect(opts.aggressive.kind).toBe("aggressive");
 	});
+
+	it("preserves monotonicity at extreme low cost ratio (cu=1, co=10)", () => {
+		const q = { 0.1: 80, 0.25: 90, 0.5: 100, 0.75: 110, 0.9: 120 };
+		const opts = generatePlanOptions(q, { cu: 1, co: 10 });
+		expect(opts.conservative.bakeQuantity).toBeLessThanOrEqual(opts.balanced.bakeQuantity);
+		expect(opts.balanced.bakeQuantity).toBeLessThanOrEqual(opts.aggressive.bakeQuantity);
+	});
+
+	it("preserves monotonicity at extreme high cost ratio (cu=10, co=1)", () => {
+		const q = { 0.1: 80, 0.25: 90, 0.5: 100, 0.75: 110, 0.9: 120 };
+		const opts = generatePlanOptions(q, { cu: 10, co: 1 });
+		expect(opts.conservative.bakeQuantity).toBeLessThanOrEqual(opts.balanced.bakeQuantity);
+		expect(opts.balanced.bakeQuantity).toBeLessThanOrEqual(opts.aggressive.bakeQuantity);
+	});
+
+	it("throws when both costs are zero", () => {
+		const q = { 0.1: 80, 0.25: 90, 0.5: 100, 0.75: 110, 0.9: 120 };
+		expect(() => generatePlanOptions(q, { cu: 0, co: 0 })).toThrow(/cu \+ co/);
+	});
 });
