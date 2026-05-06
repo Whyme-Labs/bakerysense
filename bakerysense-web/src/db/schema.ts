@@ -272,3 +272,43 @@ export const retrainEvents = sqliteTable(
 		parentModelIdx: index("retrain_events_parent_idx").on(t.parentModelId),
 	}),
 );
+
+// Three-options bake plan — committed operator choices.
+//
+// One row per committed plan choice: (tenant, branch, family, date) unique.
+// Records which option kind the baker chose (conservative / balanced /
+// aggressive / custom), the bake quantity, the lineage links back to the
+// forecast snapshot and model version, expected outcomes at commit time (for
+// later reconciliation against actuals), and full audit metadata.
+//
+// model_version_id is denormalised from forecast_snapshots so lineage joins
+// are one hop rather than two.
+export const bakePlanDecisions = sqliteTable(
+  "bake_plan_decisions",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id),
+    branchId: text("branch_id").notNull().references(() => branches.id),
+    family: text("family").notNull(),
+    date: text("date").notNull(),
+    optionKind: text("option_kind", {
+      enum: ["conservative", "balanced", "aggressive", "custom"],
+    }).notNull(),
+    bakeQuantity: integer("bake_quantity").notNull(),
+    // Lineage links — denormalised from forecast_snapshots so the join is one hop.
+    forecastSnapshotId: text("forecast_snapshot_id").references(() => forecastSnapshots.id),
+    modelVersionId: text("model_version_id").references(() => modelVersions.id),
+    // Expected outcomes computed at commit time (units, not currency).
+    expectedWasteUnits: text("expected_waste_units"),     // numeric stored as TEXT for fp safety
+    expectedStockoutProb: text("expected_stockout_prob"), // 0..1
+    expectedUnitsSold: text("expected_units_sold"),
+    committedByUserId: text("committed_by_user_id").notNull().references(() => users.id),
+    committedAt: integer("committed_at").notNull(),
+    notes: text("notes"),
+  },
+  (t) => ({
+    uniq: uniqueIndex("bake_plan_decisions_unique_idx").on(t.tenantId, t.branchId, t.family, t.date),
+    lookupIdx: index("bake_plan_decisions_lookup_idx").on(t.tenantId, t.branchId, t.date),
+    snapIdx: index("bake_plan_decisions_snapshot_idx").on(t.forecastSnapshotId),
+  }),
+);
