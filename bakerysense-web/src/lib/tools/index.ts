@@ -6,6 +6,7 @@ import { tool as forecast } from "./forecast";
 import { tool as explainDrivers } from "./explain_drivers";
 import { tool as wasteRisk } from "./waste_risk";
 import { tool as suggestMarkdowns } from "./suggest_markdowns";
+import { tool as narratePlanOptions } from "./narrate_plan_options";
 
 export interface ToolContext {
   env: CloudflareEnv;
@@ -31,6 +32,7 @@ export const TOOL_REGISTRY: Record<string, ToolImpl<any, unknown>> = {
   explain_drivers: explainDrivers,
   waste_risk: wasteRisk,
   suggest_markdowns: suggestMarkdowns,
+  narrate_plan_options: narratePlanOptions,
 };
 
 export const TOOL_SCHEMAS: ToolSchema[] = Object.values(TOOL_REGISTRY).map((t) => t.schema);
