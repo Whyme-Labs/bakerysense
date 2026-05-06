@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, primaryKey, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, uniqueIndex, index, check } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 export const tenants = sqliteTable("tenants", {
 	id: text("id").primaryKey(),
@@ -284,31 +285,38 @@ export const retrainEvents = sqliteTable(
 // model_version_id is denormalised from forecast_snapshots so lineage joins
 // are one hop rather than two.
 export const bakePlanDecisions = sqliteTable(
-  "bake_plan_decisions",
-  {
-    id: text("id").primaryKey(),
-    tenantId: text("tenant_id").notNull().references(() => tenants.id),
-    branchId: text("branch_id").notNull().references(() => branches.id),
-    family: text("family").notNull(),
-    date: text("date").notNull(),
-    optionKind: text("option_kind", {
-      enum: ["conservative", "balanced", "aggressive", "custom"],
-    }).notNull(),
-    bakeQuantity: integer("bake_quantity").notNull(),
-    // Lineage links — denormalised from forecast_snapshots so the join is one hop.
-    forecastSnapshotId: text("forecast_snapshot_id").references(() => forecastSnapshots.id),
-    modelVersionId: text("model_version_id").references(() => modelVersions.id),
-    // Expected outcomes computed at commit time (units, not currency).
-    expectedWasteUnits: text("expected_waste_units"),     // numeric stored as TEXT for fp safety
-    expectedStockoutProb: text("expected_stockout_prob"), // 0..1
-    expectedUnitsSold: text("expected_units_sold"),
-    committedByUserId: text("committed_by_user_id").notNull().references(() => users.id),
-    committedAt: integer("committed_at").notNull(),
-    notes: text("notes"),
-  },
-  (t) => ({
-    uniq: uniqueIndex("bake_plan_decisions_unique_idx").on(t.tenantId, t.branchId, t.family, t.date),
-    lookupIdx: index("bake_plan_decisions_lookup_idx").on(t.tenantId, t.branchId, t.date),
-    snapIdx: index("bake_plan_decisions_snapshot_idx").on(t.forecastSnapshotId),
-  }),
+	"bake_plan_decisions",
+	{
+		id: text("id").primaryKey(),
+		tenantId: text("tenant_id").notNull().references(() => tenants.id),
+		branchId: text("branch_id").notNull().references(() => branches.id),
+		family: text("family").notNull(),
+		date: text("date").notNull(),
+		optionKind: text("option_kind", {
+			enum: ["conservative", "balanced", "aggressive", "custom"],
+		}).notNull(),
+		bakeQuantity: integer("bake_quantity").notNull(),
+		// Lineage links — denormalised from forecast_snapshots so the join is one hop.
+		forecastSnapshotId: text("forecast_snapshot_id").references(() => forecastSnapshots.id),
+		modelVersionId: text("model_version_id").references(() => modelVersions.id),
+		// Expected outcomes computed at commit time (units, not currency).
+		expectedWasteUnits: text("expected_waste_units"),     // numeric stored as TEXT for fp safety
+		expectedStockoutProb: text("expected_stockout_prob"), // 0..1
+		expectedUnitsSold: text("expected_units_sold"),
+		committedByUserId: text("committed_by_user_id").notNull().references(() => users.id),
+		committedAt: integer("committed_at").notNull(),
+		notes: text("notes"),
+	},
+	(t) => ({
+		uniq: uniqueIndex("bake_plan_decisions_unique_idx").on(t.tenantId, t.branchId, t.family, t.date),
+		lookupIdx: index("bake_plan_decisions_lookup_idx").on(t.tenantId, t.branchId, t.date),
+		snapIdx: index("bake_plan_decisions_snapshot_idx").on(t.forecastSnapshotId),
+		modelVersionIdx: index("bake_plan_decisions_model_version_idx").on(t.modelVersionId),
+		// Lineage coherence: forecast_snapshot_id and model_version_id are a
+		// denormalised pair — either both NULL (no lineage) or both set.
+		lineageCoherent: check(
+			"bake_plan_decisions_lineage_coherent",
+			sql`(${t.forecastSnapshotId} IS NULL AND ${t.modelVersionId} IS NULL) OR (${t.forecastSnapshotId} IS NOT NULL AND ${t.modelVersionId} IS NOT NULL)`,
+		),
+	}),
 );
