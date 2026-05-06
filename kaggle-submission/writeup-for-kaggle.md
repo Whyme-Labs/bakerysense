@@ -6,8 +6,8 @@
 |---|---|
 | **🎥 Demo video** | <https://youtu.be/N_ADKVnl90w> (1:53) |
 | **🌐 Live demo** | <https://bakerysense-web.swmengappdev.workers.dev> (`demo@bakerysense.app` / `Demo2026DemoDemo` / tenant `favorita`) |
-| **💻 Repository** | <https://github.com/wms2537/gemma-4-hack> |
-| **📊 Research log** | [tier-scorecard.md](https://github.com/wms2537/gemma-4-hack/blob/master/docs/research/tier-scorecard.md) — 23 tiers, 9 datasets, all positive + negative findings |
+| **💻 Repository** | <https://github.com/Whyme-Labs/gemma-4-hack> |
+| **📊 Research log** | [tier-scorecard.md](https://github.com/Whyme-Labs/gemma-4-hack/blob/master/docs/research/tier-scorecard.md) — 23 tiers, 9 datasets, all positive + negative findings |
 | **📜 License** | CC-BY-4.0 per Rules §2.5 |
 
 ---
@@ -117,7 +117,7 @@ Underneath: **decision-centric, not data-centric**. Data, logic, action, and sec
 
 Built for the Gemma 4 Good Hackathon (Kaggle, deadline 2026-05-18).
 
-Repository: <https://github.com/wms2537/gemma-4-hack>
+Repository: <https://github.com/Whyme-Labs/gemma-4-hack>
 
 ---
 

@@ -109,7 +109,7 @@ Out of scope for this submission, but on the roadmap: **TimesFM-2 cold-start sid
 
 Built for the Gemma 4 Good Hackathon (Kaggle, deadline 2026-05-18).
 
-Repository: <https://github.com/wms2537/gemma-4-hack>
+Repository: <https://github.com/Whyme-Labs/gemma-4-hack>
 
 ---
 

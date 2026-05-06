@@ -75,7 +75,7 @@
 - [ ] Submit `docs/demo/writeup.md` as the writeup PDF / markdown
 - [ ] Upload `docs/demo/demo-final.mp4` as the demo video
 - [ ] Upload cover image per `docs/demo/cover-image-spec.md`
-- [ ] Reference repo: https://github.com/wms2537/gemma-4-hack
+- [ ] Reference repo: https://github.com/Whyme-Labs/gemma-4-hack
 - [ ] License: CC-BY-4.0 per Rules §2.5
 
 ### Things to mention in the Kaggle submission form
