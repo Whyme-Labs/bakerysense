@@ -1,0 +1,41 @@
+{
+  "$schema_version": "1.0.0",
+  "post_forecast_adjustments": {
+    "dow_multipliers": {
+      "Mon": 1.00,
+      "Tue": 1.00,
+      "Wed": 1.00,
+      "Thu": 1.00,
+      "Fri": 1.00,
+      "Sat": 1.00,
+      "Sun": 1.00
+    },
+    "event_overrides": [],
+    "sku_adjustments": []
+  },
+  "newsvendor_cost_ratio": {
+    "cu": 2.0,
+    "co": 1.0
+  },
+  "routing_overrides": {
+    "min_actuals_for_gbm": 30,
+    "force_prior_skus": [],
+    "force_timesfm_tail_for_skus": []
+  },
+  "guardrails": {
+    "multiplier_floor": 0.5,
+    "multiplier_ceiling": 2.0,
+    "max_delta_per_op": 0.2,
+    "max_ops_per_proposal": 3,
+    "exploration_every_n_runs": 7
+  },
+  "evidence": {
+    "min_evidence_rows": 5,
+    "miss_threshold": 0.15,
+    "min_improvement_wape": 0.01
+  },
+  "windows": {
+    "evidence_days": [-7, -1],
+    "holdout_days":  [-30, -8]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "skill_id": "forecast",
+  "version": "1.0.0",
+  "goal": "Return the quantile demand forecast and newsvendor-picked bake quantity for one SKU-day at a branch.",
+  "implementation_module": "src/lib/tools/forecast.ts",
+  "inputs": [
+    { "name": "sku",        "type": "string", "required": true, "description": "Product family name" },
+    { "name": "on_date",    "type": "string", "required": true, "description": "ISO date YYYY-MM-DD" },
+    { "name": "branch_id",  "type": "string", "required": true, "description": "Branch identifier" }
+  ],
+  "outputs": [
+    { "name": "quantile_forecast", "type": "Record<string, number>", "description": "Map qX.X -> units (e.g. q0.5, q0.7, q0.9)" },
+    { "name": "bake_quantity",     "type": "number",                  "description": "Newsvendor-picked recommendation" },
+    { "name": "stage",             "type": "string",                  "description": "Forecast-router stage (prior / gbm / blend / timesfm-tail)" },
+    { "name": "confidence",        "type": "number",                  "description": "0..1, flags low-confidence rows for downstream gates" }
+  ],
+  "subsystems_touched": [
+    "model_versions",
+    "forecast_snapshots",
+    "features",
+    "gbm-walker",
+    "newsvendor",
+    "corpus-prior",
+    "forecasters/timesfm"
+  ],
+  "constraints": [
+    "Numeric output (quantile values, bake_quantity) comes from GBM / prior / TimesFM — never from an LLM.",
+    "Forecast quantity is non-negative and rounded to integer units.",
+    "Confidence < 0.4 must set the low_confidence flag for downstream skills.",
+    "branch_id must pass assertBranchAccess() — RBAC is not bypassable."
+  ],
+  "approval_required": false,
+  "eval_metrics": [
+    "wape",
+    "mase",
+    "pinball_q05",
+    "pinball_q09",
+    "stockout_rate",
+    "waste_rate"
+  ],
+  "evolvable_via": "skill.rules.json",
+  "evolvable_surface": {
+    "post_forecast_adjustments": "Multiplicative overlay applied AFTER the deterministic forecaster runs and BEFORE newsvendor selection. Lets the harness learn branch- or brand-level day-of-week, event, and SKU corrections without touching the GBM artifact.",
+    "newsvendor_cost_ratio": "Per-skill (cu, co) override, with cu/(cu+co) as the target quantile.",
+    "routing_overrides": "Per-SKU or per-event overrides for forecast-router stage selection (e.g. force prior for a new SKU with <30 actuals)."
+  },
+  "trace_emits": "forecast_snapshots (existing). Each call is one trace event linked to a model_version_id."
+}

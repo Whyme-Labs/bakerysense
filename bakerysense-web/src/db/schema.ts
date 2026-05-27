@@ -320,3 +320,138 @@ export const bakePlanDecisions = sqliteTable(
 		),
 	}),
 );
+
+// Skill version registry (Self-Evolving Harness foundation, drizzle 0007).
+//
+// Mirrors `modelVersions` but tracks *skill artifacts* (manifest + rules.json)
+// instead of ML model artifacts. See docs/architecture/self-evolving-harness.md
+// for the full design.
+//
+// Hierarchical scope (brand × branch):
+//   branchId = NULL  → brand-level default for the tenant.
+//   branchId set     → branch-level override.
+// A branch's runtime rules = deep_merge(brand active rules, branch active rules).
+//
+// Status transitions:
+//   draft       → created, not yet serving.
+//   active      → currently in use for this scope.
+//   superseded  → was active, replaced by a newer version.
+//   rejected    → proposed but never activated.
+export const skillVersions = sqliteTable(
+	"skill_versions",
+	{
+		id: text("id").primaryKey(),
+		tenantId: text("tenant_id").notNull().references(() => tenants.id),
+		branchId: text("branch_id").references(() => branches.id),
+		// Matches directory name under src/lib/skills/ — e.g. 'forecast',
+		// 'bake_plan', 'waste_risk'.
+		skillId: text("skill_id").notNull(),
+		// Monotonic per (tenantId, COALESCE(branchId,''), skillId).
+		versionNumber: integer("version_number").notNull(),
+		parentSkillVersionId: text("parent_skill_version_id"),
+		// Skill contract at the time this version was created (mirrors
+		// src/lib/skills/<skillId>/skill.manifest.json).
+		manifestJson: text("manifest_json").notNull(),
+		// Evolvable payload. Proposer's bounded edits target this JSON.
+		rulesJson: text("rules_json").notNull(),
+		status: text("status", { enum: ["draft", "active", "superseded", "rejected"] })
+			.notNull()
+			.default("draft"),
+		activatedAt: integer("activated_at"),
+		supersededAt: integer("superseded_at"),
+		// {wape, mase, ...} on the holdout window at promotion time.
+		// NULL for the bootstrap/built-in version.
+		validationMetricsJson: text("validation_metrics_json"),
+		createdAt: integer("created_at").notNull(),
+	},
+	(t) => ({
+		// COALESCE folds brand-level (branchId NULL) rows into the empty
+		// bucket so versionNumber is monotonic within each scope.
+		uniq: uniqueIndex("skill_versions_unique_idx").on(
+			t.tenantId, sql`COALESCE(${t.branchId}, '')`, t.skillId, t.versionNumber,
+		),
+		activeIdx: index("skill_versions_active_idx").on(
+			t.tenantId, t.branchId, t.skillId, t.status,
+		),
+		parentIdx: index("skill_versions_parent_idx").on(t.parentSkillVersionId),
+		statusCoherent: check(
+			"skill_versions_status_coherent",
+			sql`(${t.status} = 'draft'      AND ${t.activatedAt} IS NULL     AND ${t.supersededAt} IS NULL)
+			    OR (${t.status} = 'active'     AND ${t.activatedAt} IS NOT NULL AND ${t.supersededAt} IS NULL)
+			    OR (${t.status} = 'superseded' AND ${t.activatedAt} IS NOT NULL AND ${t.supersededAt} IS NOT NULL)
+			    OR (${t.status} = 'rejected')`,
+		),
+	}),
+);
+
+// Evolution proposals — pending bounded edits awaiting validation + approval
+// (Self-Evolving Harness, drizzle 0008).
+//
+// Created by the nightly inspector (src/lib/harness/inspector.ts) when a
+// learnable miss pattern is detected. The validator scores the proposed edit
+// on a strictly disjoint holdout window before the row reaches owner review.
+// Auditability: diagnosisDetailJson records the per-trace classification
+// that motivated the proposal.
+//
+// Status transitions:
+//   pending              → validation passed, awaiting owner review.
+//   approved             → owner accepted; a new skillVersions row was created.
+//   rejected             → owner rejected.
+//   rejected_validation  → validator showed no meaningful improvement.
+//   expired              → unreviewed beyond TTL.
+export const evolutionProposals = sqliteTable(
+	"evolution_proposals",
+	{
+		id: text("id").primaryKey(),
+		tenantId: text("tenant_id").notNull().references(() => tenants.id),
+		// NULL = proposal targets a brand-level skill version (cross-branch promotion).
+		branchId: text("branch_id").references(() => branches.id),
+		skillId: text("skill_id").notNull(),
+		// The skillVersions row this proposal edits. On approval, a child
+		// version is inserted with parentSkillVersionId = this.
+		parentSkillVersionId: text("parent_skill_version_id")
+			.notNull()
+			.references(() => skillVersions.id),
+		// JSON-Patch-shaped: [{op, path, value, from?}],
+		// op ∈ {'add','delete','replace'}.
+		editOpsJson: text("edit_ops_json").notNull(),
+		// JSON array of bakePlanDecisions.id rows that motivated the proposal.
+		evidenceTraceIds: text("evidence_trace_ids").notNull(),
+		// Gemma-narrated short summary. Numeric content is deterministic;
+		// Gemma narrates only.
+		diagnosisSummary: text("diagnosis_summary").notNull(),
+		// Per-row classification:
+		//   [{trace_id, cause, reason_code, reason_payload}].
+		// cause ∈ {stockout_capped, operator_correction, operator_override,
+		// context_shock_recurring, context_shock_one_off, skill_error,
+		// insufficient_evidence}. See src/lib/harness/diagnoser.ts.
+		diagnosisDetailJson: text("diagnosis_detail_json").notNull(),
+		// {before_wape, after_wape, before_mase, after_mase, holdout_window}.
+		validationMetricsJson: text("validation_metrics_json"),
+		// 0 / 1 / NULL (not yet run).
+		validationPassed: integer("validation_passed"),
+		status: text("status", {
+			enum: ["pending", "approved", "rejected", "rejected_validation", "expired"],
+		}).notNull().default("pending"),
+		reviewedByUserId: text("reviewed_by_user_id").references(() => users.id),
+		reviewedAt: integer("reviewed_at"),
+		createdAt: integer("created_at").notNull(),
+	},
+	(t) => ({
+		pendingIdx: index("evolution_proposals_pending_idx").on(
+			t.tenantId, t.branchId, t.status, t.createdAt,
+		),
+		parentIdx: index("evolution_proposals_parent_idx").on(t.parentSkillVersionId),
+		skillIdx: index("evolution_proposals_skill_idx").on(
+			t.tenantId, t.skillId, t.createdAt,
+		),
+		// Review coherence: reviewedBy/reviewedAt populated iff status is a
+		// human review outcome.
+		reviewCoherent: check(
+			"evolution_proposals_review_coherent",
+			sql`(${t.status} IN ('pending','rejected_validation','expired') AND ${t.reviewedByUserId} IS NULL AND ${t.reviewedAt} IS NULL)
+			    OR (${t.status} IN ('approved','rejected') AND ${t.reviewedByUserId} IS NOT NULL AND ${t.reviewedAt} IS NOT NULL)`,
+		),
+	}),
+);
+

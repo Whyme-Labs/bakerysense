@@ -1,0 +1,33 @@
+{
+  "$schema_version": "1.0.0",
+  "option_quantile_mapping": {
+    "conservative": 0.5,
+    "balanced":     0.7,
+    "aggressive":   0.9
+  },
+  "batch_rounding": {
+    "default_batch_size": 1,
+    "per_sku": {}
+  },
+  "narration_thresholds": {
+    "stockout_high_pct": 50,
+    "stockout_medium_pct": 20,
+    "waste_visible_units": 5
+  },
+  "guardrails": {
+    "quantile_floor": 0.1,
+    "quantile_ceiling": 0.95,
+    "max_quantile_delta_per_op": 0.1,
+    "max_ops_per_proposal": 2,
+    "exploration_every_n_runs": 7
+  },
+  "evidence": {
+    "min_evidence_rows": 5,
+    "miss_threshold": 0.15,
+    "min_improvement_wape": 0.01
+  },
+  "windows": {
+    "evidence_days": [-7, -1],
+    "holdout_days":  [-30, -8]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "skill_id": "bake_plan",
+  "version": "1.0.0",
+  "goal": "Produce three bake-plan options (conservative / balanced / aggressive) for one (sku, on_date, branch), each with expected waste, stockout probability, units sold, and a baker-language tradeoff narration.",
+  "implementation_module": "src/lib/tools/narrate_plan_options.ts",
+  "supporting_modules": [
+    "src/lib/plan-options.ts",
+    "src/lib/simulation.ts"
+  ],
+  "inputs": [
+    { "name": "sku",       "type": "string", "required": true, "description": "Product family name" },
+    { "name": "on_date",   "type": "string", "required": true, "description": "ISO date YYYY-MM-DD" },
+    { "name": "branch_id", "type": "string", "required": true, "description": "Branch identifier" }
+  ],
+  "outputs": [
+    { "name": "options", "type": "PlanOption[]", "description": "Length-3 array, one per kind: conservative/balanced/aggressive. Each has bakeQuantity + outcome {expectedWasteUnits, expectedStockoutProb, expectedUnitsSold} + narration sentence." }
+  ],
+  "subsystems_touched": [
+    "forecast (skill)",
+    "plan-options",
+    "simulation"
+  ],
+  "constraints": [
+    "All numeric outputs (bake quantities, expected waste/stockout/units sold) come from generatePlanOptions + simulation — never from an LLM.",
+    "Narration is deterministic baker-language scaffold (no LLM); Gemma quotes these sentences verbatim downstream.",
+    "Bake quantities are non-negative integers; rounding rules in rules.json.",
+    "Exactly three options returned, always in the order conservative → balanced → aggressive."
+  ],
+  "approval_required": true,
+  "approval_note": "Owner approval at commit-time is the gate that writes a bake_plan_decisions row. The harness never auto-commits.",
+  "eval_metrics": [
+    "wape",
+    "waste_units_actual",
+    "stockout_realized_rate",
+    "operator_acceptance_rate",
+    "operator_option_kind_distribution"
+  ],
+  "evolvable_via": "skill.rules.json",
+  "evolvable_surface": {
+    "option_quantile_mapping": "Which quantile defines each option kind (e.g. conservative=q0.5, balanced=q0.7, aggressive=q0.9). The harness can widen or narrow the band based on observed operator preferences.",
+    "batch_rounding": "Per-SKU batch size and minimum-batch rules (e.g. croissants in batches of 10).",
+    "narration_thresholds": "The stockout-% and waste-units thresholds that trigger different narration clauses ('low chance', 'likely to run out', etc.). Tuning these affects how alarming the recommendation feels."
+  },
+  "trace_emits": "bake_plan_decisions (existing) — populated when the operator commits one of the three options. The committed option_kind is the learning signal for operator_correction vs operator_override classification."
+}
