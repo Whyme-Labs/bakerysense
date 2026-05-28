@@ -1,7 +1,9 @@
 import React from "react";
 import {
 	AbsoluteFill,
+	Img,
 	Sequence,
+	staticFile,
 	useCurrentFrame,
 	useVideoConfig,
 	interpolate,
@@ -31,9 +33,9 @@ const FONT = "Geist, Inter, system-ui, sans-serif";
 const MONO = "Geist Mono, ui-monospace, monospace";
 
 // Scene durations (frames @30fps).
-const D = { cold: 120, loop: 210, catch: 210, diverge: 195, approve: 135, thesis: 165 };
+const D = { cold: 120, loop: 210, product: 150, catch: 210, diverge: 210, approve: 135, thesis: 165 };
 export const HARNESS_STORY_FRAMES =
-	D.cold + D.loop + D.catch + D.diverge + D.approve + D.thesis;
+	D.cold + D.loop + D.product + D.catch + D.diverge + D.approve + D.thesis;
 
 // Standard fade-in/out envelope so scene cuts feel continuous on a shared bg.
 function envelope(frame: number, dur: number, fade = 12): number {
@@ -198,6 +200,66 @@ const LoopDiagram: React.FC = () => {
 	);
 };
 
+// Ken Burns: slow frame-driven zoom + pan on an image.
+const KenBurns: React.FC<{
+	src: string;
+	dur: number;
+	from?: { scale: number; x: number; y: number };
+	to?: { scale: number; x: number; y: number };
+	radius?: number;
+	style?: React.CSSProperties;
+}> = ({ src, dur, from = { scale: 1.06, x: 0, y: -2 }, to = { scale: 1.14, x: 0, y: 4 }, radius = 14, style }) => {
+	const frame = useCurrentFrame();
+	const t = interpolate(frame, [0, dur], [0, 1], { extrapolateRight: "clamp", easing: Easing.inOut(Easing.quad) });
+	const scale = interpolate(t, [0, 1], [from.scale, to.scale]);
+	const x = interpolate(t, [0, 1], [from.x, to.x]);
+	const y = interpolate(t, [0, 1], [from.y, to.y]);
+	return (
+		<div style={{ overflow: "hidden", borderRadius: radius, ...style }}>
+			<Img src={src} style={{ width: "100%", display: "block", transform: `scale(${scale}) translate(${x}%, ${y}%)` }} />
+		</div>
+	);
+};
+
+// ---------------------------------------------------------------------------
+// 2b. Product reveal — the real /harness page (Ken Burns) + callout
+// ---------------------------------------------------------------------------
+const ProductReveal: React.FC = () => {
+	const frame = useCurrentFrame();
+	const { fps } = useVideoConfig();
+	const opacity = envelope(frame, D.product);
+	const chip = spring({ frame: frame - 16, fps, config: { damping: 160 } });
+	const ring = interpolate(frame, [60, 100], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+	return (
+		<AbsoluteFill style={{ opacity }}>
+			<Backdrop />
+			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+				<div style={{ position: "relative", width: 1080, boxShadow: "0 30px 80px oklch(0.4 0.05 70 / 0.25)", borderRadius: 16 }}>
+					<KenBurns src={staticFile("captures/harness-full.png")} dur={D.product} radius={16} />
+					{/* pulsing highlight over the proposals region */}
+					<div style={{
+						position: "absolute", left: "5%", top: "52%", width: "90%", height: "40%",
+						border: `3px solid ${AMBER}`, borderRadius: 12,
+						opacity: ring * (0.5 + 0.5 * Math.sin(frame / 5)),
+					}} />
+				</div>
+			</AbsoluteFill>
+			<div style={{
+				position: "absolute", top: 70, left: 0, width: "100%", textAlign: "center",
+				opacity: chip, transform: `translateY(${interpolate(chip, [0, 1], [-16, 0])}px)`,
+			}}>
+				<span style={{
+					display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 18px", borderRadius: 999,
+					background: INK, color: "#fff8ee", fontFamily: MONO, fontSize: 18, letterSpacing: "0.06em",
+				}}>
+					<span style={{ width: 9, height: 9, borderRadius: 999, background: GREEN }} />
+					The actual product · proposals waiting for review
+				</span>
+			</div>
+		</AbsoluteFill>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // 3. The catch — WAPE count-down + diff reveal
 // ---------------------------------------------------------------------------
@@ -247,23 +309,25 @@ const CatchScene: React.FC = () => {
 // ---------------------------------------------------------------------------
 // 4. Divergence split-screen
 // ---------------------------------------------------------------------------
-const BranchPanel: React.FC<{ name: string; day: string; appear: number; align: "left" | "right" }> = ({ name, day, appear, align }) => {
+const BranchPanel: React.FC<{ name: string; day: string; card: string; appear: number; align: "left" | "right" }> = ({ name, day, card, appear, align }) => {
 	const frame = useCurrentFrame();
 	const { fps } = useVideoConfig();
 	const s = spring({ frame: frame - appear, fps, config: { damping: 200 } });
 	const dx = interpolate(s, [0, 1], [align === "left" ? -60 : 60, 0]);
-	const chip = spring({ frame: frame - appear - 24, fps, config: { damping: 140 } });
+	const cardS = spring({ frame: frame - appear - 18, fps, config: { damping: 160 } });
 	return (
-		<div style={{ flex: 1, opacity: s, transform: `translateX(${dx}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, padding: 40 }}>
-			<div style={{ fontFamily: FONT, fontSize: 34, fontWeight: 700, color: "#fff8ee" }}>{name}</div>
+		<div style={{ flex: 1, opacity: s, transform: `translateX(${dx}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, padding: 36 }}>
+			<div style={{ fontFamily: FONT, fontSize: 32, fontWeight: 700, color: "#fff8ee" }}>{name}</div>
+			{/* the real proposal card screenshot */}
 			<div style={{
-				transform: `scale(${interpolate(chip, [0, 1], [0.8, 1])})`, opacity: chip,
-				background: AMBER, color: INK, borderRadius: 12, padding: "16px 24px",
-				fontFamily: MONO, fontSize: 22, fontWeight: 700, boxShadow: "0 0 40px oklch(0.76 0.14 70 / 0.5)",
+				width: 520, opacity: cardS,
+				transform: `translateY(${interpolate(cardS, [0, 1], [20, 0])}px) scale(${interpolate(cardS, [0, 1], [0.96, 1])})`,
+				borderRadius: 12, overflow: "hidden", boxShadow: "0 18px 50px oklch(0.1 0.02 60 / 0.5)",
+				border: `2px solid ${AMBER}`,
 			}}>
-				CROISSANT · {day} → 0.80
+				<Img src={staticFile(card)} style={{ width: "100%", display: "block" }} />
 			</div>
-			<div style={{ fontFamily: MONO, fontSize: 15, color: MUTED }}>learned on its own</div>
+			<div style={{ fontFamily: MONO, fontSize: 16, color: AMBER }}>learned {day} on its own</div>
 		</div>
 	);
 };
@@ -279,10 +343,10 @@ const Divergence: React.FC = () => {
 				<div style={{ fontFamily: MONO, fontSize: 18, color: AMBER, letterSpacing: "0.16em", textTransform: "uppercase" }}>Same brand · same model</div>
 				<div style={{ fontFamily: FONT, fontSize: 46, fontWeight: 700, color: "#fff8ee", marginTop: 8 }}>Each shop evolves a different playbook</div>
 			</div>
-			<AbsoluteFill style={{ flexDirection: "row", alignItems: "center", paddingTop: 80 }}>
-				<BranchPanel name="Bukit Bintang" day="Wed" appear={24} align="left" />
-				<div style={{ width: 2, height: 320, background: "oklch(0.4 0.02 60)" }} />
-				<BranchPanel name="Subang Jaya" day="Sun" appear={48} align="right" />
+			<AbsoluteFill style={{ flexDirection: "row", alignItems: "center", paddingTop: 90 }}>
+				<BranchPanel name="Bukit Bintang" day="Wed" card="captures/harness-card-2.png" appear={24} align="left" />
+				<div style={{ width: 2, height: 300, background: "oklch(0.4 0.02 60)" }} />
+				<BranchPanel name="Subang Jaya" day="Sun" card="captures/harness-card-1.png" appear={48} align="right" />
 			</AbsoluteFill>
 		</AbsoluteFill>
 	);
@@ -347,6 +411,7 @@ export const HarnessStory: React.FC = () => {
 	const scenes: [React.FC, number][] = [
 		[ColdOpen, D.cold],
 		[LoopDiagram, D.loop],
+		[ProductReveal, D.product],
 		[CatchScene, D.catch],
 		[Divergence, D.diverge],
 		[Approval, D.approve],
