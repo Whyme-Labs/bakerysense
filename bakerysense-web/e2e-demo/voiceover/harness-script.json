@@ -1,0 +1,42 @@
+{
+  "_comment": "Scene-anchored narration for the HarnessStory composition. anchor maps to a scene in HarnessStory.tsx; audio plays during that scene. Timed roughly to scene durations at 30fps.",
+  "model_id": "openbmb/VoxCPM2",
+  "language": "English",
+  "sections": [
+    {
+      "id": "cold",
+      "anchor": "cold",
+      "text": "Every independent bakery throws out nearly forty percent of what it bakes. The waste isn't ignorance. It's uncertainty."
+    },
+    {
+      "id": "loop",
+      "anchor": "loop",
+      "text": "BakerySense closes the loop. Every night it replays its own decisions, diagnoses where the forecast missed, proposes a fix, and validates it, before a human ever sees it."
+    },
+    {
+      "id": "product",
+      "anchor": "product",
+      "text": "This is the live product. Corrections it learned from the bakery's own sales, waiting for review."
+    },
+    {
+      "id": "catch",
+      "anchor": "catch",
+      "text": "At Bukit Bintang, croissants ran twenty-five percent high every Wednesday. The harness caught it, and a held-out test confirms the fix cuts error from three percent to two."
+    },
+    {
+      "id": "diverge",
+      "anchor": "diverge",
+      "text": "Same brand, same model. But each shop evolves its own playbook. Bukit Bintang learned Wednesdays. Subang learned Sundays."
+    },
+    {
+      "id": "approve",
+      "anchor": "approve",
+      "text": "The harness proposes. The owner decides. Every edit is validated, and every edit is auditable."
+    },
+    {
+      "id": "thesis",
+      "anchor": "thesis",
+      "text": "The model stays frozen. The skills evolve. BakerySense. A self-evolving harness for perishable businesses."
+    }
+  ]
+}

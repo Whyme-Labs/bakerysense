@@ -1,22 +1,23 @@
 # BakerySense
 
 [![License: CC-BY-4.0](https://img.shields.io/badge/License-CC--BY--4.0-lightgrey.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-203%20passing-brightgreen)](./tests)
+[![Tests](https://img.shields.io/badge/tests-285%20passing-brightgreen)](./tests)
 [![Gemma 4](https://img.shields.io/badge/Gemma%204-E4B%20Q4__K__M-orange)](https://ollama.com/library/gemma4)
 
-Offline-first production decision copilot for bakeries. Submission for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-4-good-hackathon) (deadline **2026-05-18**).
+**A self-evolving operations harness for bakeries and perishable SMEs.** It turns sales history into tomorrow's bake plan — then learns from its own decisions: every night it replays its execution traces, diagnoses where the forecast *systematically* missed, proposes a validated correction, and surfaces it for one-tap owner approval. Each branch evolves its own playbook; the forecasting model stays frozen, the **skills** evolve.
+
+Originally built for the Gemma 4 Good Hackathon; now extended into a self-evolving harness for UCWS Singapore 2026.
 
 ## Live demo
 
-- **App:** <https://bakerysense-web.swmengappdev.workers.dev>
-- **Video:** <https://youtu.be/N_ADKVnl90w> (1:53). Local copy: [`docs/demo/demo-final.mp4`](docs/demo/demo-final.mp4); storyboard at [`docs/demo/storyboard.md`](docs/demo/storyboard.md).
-- **Kaggle writeup:** [`kaggle-submission/writeup-for-kaggle.md`](kaggle-submission/writeup-for-kaggle.md) (≤1500 words, the version submitted)
+- **App:** <https://bakerysense.swmengappdev.workers.dev>
+- **Harness walkthrough:** sign in → **Admin → Harness** (`/t/demo/admin/harness`). Two branches have already evolved *different* corrections — Bukit Bintang learned Wednesdays, Subang learned Sundays. Guide: [`docs/demo-harness.md`](docs/demo-harness.md).
+- **Architecture:** [`docs/architecture/self-evolving-harness.md`](docs/architecture/self-evolving-harness.md) — the full diagnose → propose → validate → approve loop.
+- **Demo video:** dynamic motion-graphic cut at `bakerysense-web/e2e-demo/output/harness-story.mp4` (pipeline: [`bakerysense-web/e2e-demo/README.md`](bakerysense-web/e2e-demo/README.md)).
 
-Demo credentials:
-- `demo@bakerysense.app` / `Demo2026DemoDemo` — `tenant_admin`, all 5 branches
-- `manager@bakerysense.app` / `Manager2026Manager` — `branch_manager`, 2 branches
+Demo credentials: `demo@bs.co` / `Password2026Password` — tenant slug `demo`, `tenant_admin`.
 
-The live app runs Gemma 4 (`google/gemma-4-26b-a4b-it` via OpenRouter) end-to-end: sign in, pick a branch on the dashboard, ask "how many TRADITIONAL BAGUETTE should I bake tomorrow?" in chat. Gemma calls `forecast` + `explain_drivers` and returns a plain-language answer grounded in the JS LightGBM walker.
+The live app runs Gemma 4 end-to-end and the deterministic forecaster (LightGBM quantile walker + newsvendor) in a Cloudflare Worker. Numbers are deterministic; Gemma is the semantic/narration layer. The self-evolving harness sits on top: skills are external, version-controlled, training-free artifacts that the loop edits under human approval.
 
 > **A note on the live demo's TimesFM tail.** The hosted demo's `perq_blend_v2` (V1.5 prior + TimesFM q0.9 tail) routes to a localtunnel from the maintainer's laptop. When the laptop closes, the Worker falls back to `perq_blend_v1` (GBM tail) **automatically** — verified live; the demo never breaks. To run the full Tier 6 pipeline 24/7, self-host the TimesFM sidecar (one of three paths below). BakerySense is open source under CC-BY-4.0; we do not charge for hosting.
 
