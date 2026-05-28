@@ -73,3 +73,17 @@ export async function getProposal(env: CloudflareEnv, id: string): Promise<Propo
 	const rows = await getDb(env).select().from(evolutionProposals).where(eq(evolutionProposals.id, id)).limit(1).all();
 	return rows[0] ?? null;
 }
+
+/** Record a human review outcome. The review-coherence CHECK requires
+ *  reviewedByUserId + reviewedAt to be set for approved/rejected. */
+export async function markReviewed(
+	env: CloudflareEnv,
+	id: string,
+	userId: string,
+	status: "approved" | "rejected",
+): Promise<void> {
+	await getDb(env)
+		.update(evolutionProposals)
+		.set({ status, reviewedByUserId: userId, reviewedAt: Date.now() })
+		.where(eq(evolutionProposals.id, id));
+}

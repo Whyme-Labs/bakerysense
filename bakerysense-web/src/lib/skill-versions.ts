@@ -118,3 +118,51 @@ export async function resolveParentVersionId(
 	const brand = await getOrCreateActiveBrandVersion(env, tenantId, skillId);
 	return brand.id;
 }
+
+export interface ActivateArgs {
+	tenantId: string;
+	branchId: string | null;
+	skillId: SkillId;
+	/** The full rules document for the new version (brand: full; branch: sparse). */
+	rulesJson: string;
+	/** Lineage parent. Defaults to the superseded version's id. */
+	parentId?: string | null;
+	validationMetricsJson?: string | null;
+}
+
+/** Supersede the current active version for a scope (if any) and insert a new
+ *  active version with a bumped version number. Returns the new version id.
+ *
+ *  v1 does sequential writes (supersede then insert); there is a brief moment
+ *  with no active row, which is fine under the single-owner approval flow. */
+export async function supersedeAndActivate(env: CloudflareEnv, args: ActivateArgs): Promise<string> {
+	const db = getDb(env);
+	const now = Date.now();
+	const current = await getActiveVersion(env, args.tenantId, args.skillId, args.branchId);
+	const version = (await maxVersionNumber(env, args.tenantId, args.skillId, args.branchId)) + 1;
+
+	if (current) {
+		await db
+			.update(skillVersions)
+			.set({ status: "superseded", supersededAt: now })
+			.where(eq(skillVersions.id, current.id));
+	}
+
+	const id = newId();
+	await db.insert(skillVersions).values({
+		id,
+		tenantId: args.tenantId,
+		branchId: args.branchId,
+		skillId: args.skillId,
+		versionNumber: version,
+		parentSkillVersionId: args.parentId ?? current?.id ?? null,
+		manifestJson: current?.manifestJson ?? JSON.stringify(getManifest(args.skillId)),
+		rulesJson: args.rulesJson,
+		status: "active",
+		activatedAt: now,
+		supersededAt: null,
+		validationMetricsJson: args.validationMetricsJson ?? null,
+		createdAt: now,
+	});
+	return id;
+}
