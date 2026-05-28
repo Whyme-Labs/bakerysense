@@ -1,0 +1,44 @@
+[
+  {
+    "id": "cold",
+    "anchor": "cold",
+    "audio_file": "cold.wav",
+    "duration_ms": 7360
+  },
+  {
+    "id": "loop",
+    "anchor": "loop",
+    "audio_file": "loop.wav",
+    "duration_ms": 10720
+  },
+  {
+    "id": "product",
+    "anchor": "product",
+    "audio_file": "product.wav",
+    "duration_ms": 6880
+  },
+  {
+    "id": "catch",
+    "anchor": "catch",
+    "audio_file": "catch.wav",
+    "duration_ms": 10080
+  },
+  {
+    "id": "diverge",
+    "anchor": "diverge",
+    "audio_file": "diverge.wav",
+    "duration_ms": 8640
+  },
+  {
+    "id": "approve",
+    "anchor": "approve",
+    "audio_file": "approve.wav",
+    "duration_ms": 8320
+  },
+  {
+    "id": "thesis",
+    "anchor": "thesis",
+    "audio_file": "thesis.wav",
+    "duration_ms": 7360
+  }
+]

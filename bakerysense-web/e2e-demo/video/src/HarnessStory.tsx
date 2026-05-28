@@ -1,6 +1,7 @@
 import React from "react";
 import {
 	AbsoluteFill,
+	Audio,
 	Img,
 	Sequence,
 	staticFile,
@@ -10,6 +11,7 @@ import {
 	spring,
 	Easing,
 } from "remotion";
+import voManifest from "../public/vo-harness/manifest.json";
 
 // ---------------------------------------------------------------------------
 // Dynamic motion-graphic spine for the self-evolving-harness story. Pure
@@ -32,10 +34,37 @@ const MUTED = "oklch(0.55 0.02 60)";
 const FONT = "Geist, Inter, system-ui, sans-serif";
 const MONO = "Geist Mono, ui-monospace, monospace";
 
-// Scene durations (frames @30fps).
-const D = { cold: 120, loop: 210, product: 150, catch: 210, diverge: 210, approve: 135, thesis: 165 };
+const FPS = 30;
+const VO_TAIL_FRAMES = 18; // ~0.6s hold after narration ends
+
+interface VoEntry { id: string; anchor: string; audio_file: string; duration_ms: number }
+const voByAnchor = new Map<string, VoEntry>((voManifest as VoEntry[]).map((v) => [v.anchor, v]));
+function voFrames(anchor: string): number {
+	const e = voByAnchor.get(anchor);
+	return e ? Math.ceil((e.duration_ms / 1000) * FPS) + VO_TAIL_FRAMES : 0;
+}
+
+// Design minimums per scene; each scene is padded to fit its narration so
+// the voiceover is never cut off.
+const DESIGN = { cold: 120, loop: 210, product: 150, catch: 210, diverge: 210, approve: 135, thesis: 165 };
+const D = {
+	cold: Math.max(DESIGN.cold, voFrames("cold")),
+	loop: Math.max(DESIGN.loop, voFrames("loop")),
+	product: Math.max(DESIGN.product, voFrames("product")),
+	catch: Math.max(DESIGN.catch, voFrames("catch")),
+	diverge: Math.max(DESIGN.diverge, voFrames("diverge")),
+	approve: Math.max(DESIGN.approve, voFrames("approve")),
+	thesis: Math.max(DESIGN.thesis, voFrames("thesis")),
+};
 export const HARNESS_STORY_FRAMES =
 	D.cold + D.loop + D.product + D.catch + D.diverge + D.approve + D.thesis;
+
+// Per-scene voiceover, mounted at scene start.
+const SceneVO: React.FC<{ anchor: string }> = ({ anchor }) => {
+	const e = voByAnchor.get(anchor);
+	if (!e) return null;
+	return <Audio src={staticFile(`vo-harness/${e.audio_file}`)} />;
+};
 
 // Standard fade-in/out envelope so scene cuts feel continuous on a shared bg.
 function envelope(frame: number, dur: number, fade = 12): number {
@@ -408,23 +437,24 @@ const Thesis: React.FC = () => {
 
 export const HarnessStory: React.FC = () => {
 	let f = 0;
-	const scenes: [React.FC, number][] = [
-		[ColdOpen, D.cold],
-		[LoopDiagram, D.loop],
-		[ProductReveal, D.product],
-		[CatchScene, D.catch],
-		[Divergence, D.diverge],
-		[Approval, D.approve],
-		[Thesis, D.thesis],
+	const scenes: [React.FC, number, string][] = [
+		[ColdOpen, D.cold, "cold"],
+		[LoopDiagram, D.loop, "loop"],
+		[ProductReveal, D.product, "product"],
+		[CatchScene, D.catch, "catch"],
+		[Divergence, D.diverge, "diverge"],
+		[Approval, D.approve, "approve"],
+		[Thesis, D.thesis, "thesis"],
 	];
 	return (
 		<AbsoluteFill style={{ backgroundColor: SURFACE }}>
-			{scenes.map(([Comp, dur], i) => {
+			{scenes.map(([Comp, dur, anchor], i) => {
 				const from = f;
 				f += dur;
 				return (
 					<Sequence key={i} from={from} durationInFrames={dur}>
 						<Comp />
+						<SceneVO anchor={anchor} />
 					</Sequence>
 				);
 			})}
