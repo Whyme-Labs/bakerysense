@@ -10,8 +10,8 @@
       "Sat": 1.00,
       "Sun": 1.00
     },
-    "event_overrides": [],
-    "sku_adjustments": []
+    "event_overrides": {},
+    "sku_adjustments": {}
   },
   "newsvendor_cost_ratio": {
     "cu": 2.0,

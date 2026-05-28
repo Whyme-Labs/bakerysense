@@ -46,9 +46,6 @@ function asObject(v: unknown): Record<string, unknown> | undefined {
 		? (v as Record<string, unknown>)
 		: undefined;
 }
-function asArray(v: unknown): unknown[] | undefined {
-	return Array.isArray(v) ? v : undefined;
-}
 function asFiniteNumber(v: unknown): number | undefined {
 	return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
@@ -70,30 +67,32 @@ export function computeForecastMultiplier(
 	const dowMap = asObject(adj.dow_multipliers) ?? {};
 	const dowFactor = asFiniteNumber(dowMap[dow]) ?? 1;
 
-	// 2. Event overrides — product of every override whose event is active
-	//    and whose scope is "all" or equals this SKU.
+	// 2. Event overrides — keyed by event name. Apply every override whose
+	//    event is active and whose scope is "all" or equals this SKU.
 	let eventFactor = 1;
-	const events = asArray(adj.event_overrides) ?? [];
+	const events = asObject(adj.event_overrides) ?? {};
 	const activeSet = new Set(activeEvents);
-	for (const raw of events) {
+	for (const [eventName, raw] of Object.entries(events)) {
+		if (!activeSet.has(eventName)) continue;
 		const e = asObject(raw);
 		if (!e) continue;
-		const eventName = typeof e.event === "string" ? e.event : undefined;
-		if (!eventName || !activeSet.has(eventName)) continue;
 		const scope = typeof e.scope === "string" ? e.scope : "all";
 		if (scope !== "all" && scope !== sku) continue;
 		eventFactor *= asFiniteNumber(e.multiplier) ?? 1;
 	}
 
-	// 3. SKU adjustments — product of every adjustment for this SKU whose
-	//    optional dow filter matches (or is absent).
+	// 3. SKU adjustments — keyed by `${sku}|${dow}` (dow may be "*" for all
+	//    days). Apply every entry for this SKU whose dow filter matches.
 	let skuFactor = 1;
-	const skuAdj = asArray(adj.sku_adjustments) ?? [];
-	for (const raw of skuAdj) {
+	const skuAdj = asObject(adj.sku_adjustments) ?? {};
+	for (const [key, raw] of Object.entries(skuAdj)) {
+		const sep = key.indexOf("|");
+		const aSku = sep >= 0 ? key.slice(0, sep) : key;
+		const aDow = sep >= 0 ? key.slice(sep + 1) : "*";
+		if (aSku !== sku) continue;
+		if (aDow !== "*" && aDow !== dow) continue;
 		const a = asObject(raw);
 		if (!a) continue;
-		if (a.sku !== sku) continue;
-		if (typeof a.dow === "string" && a.dow !== dow) continue;
 		skuFactor *= asFiniteNumber(a.multiplier) ?? 1;
 	}
 

@@ -19,8 +19,8 @@ describe("computeForecastMultiplier", () => {
 	const baseRules: Rules = {
 		post_forecast_adjustments: {
 			dow_multipliers: { Mon: 1.0, Tue: 1.0, Wed: 0.85, Thu: 1.0, Fri: 1.18, Sat: 1.3, Sun: 0.9 },
-			event_overrides: [{ event: "school_holiday", multiplier: 1.12, scope: "all" }],
-			sku_adjustments: [{ sku: "banana_cake", dow: "Wed", multiplier: 0.9 }],
+			event_overrides: { school_holiday: { multiplier: 1.12, scope: "all" } },
+			sku_adjustments: { "banana_cake|Wed": { multiplier: 0.9 } },
 		},
 		guardrails: { multiplier_floor: 0.5, multiplier_ceiling: 2.0 },
 	};
@@ -56,8 +56,8 @@ describe("computeForecastMultiplier", () => {
 		const rules: Rules = {
 			post_forecast_adjustments: {
 				dow_multipliers: { Sat: 1.8 },
-				event_overrides: [{ event: "festival", multiplier: 1.8, scope: "all" }],
-				sku_adjustments: [],
+				event_overrides: { festival: { multiplier: 1.8, scope: "all" } },
+				sku_adjustments: {},
 			},
 			guardrails: { multiplier_floor: 0.5, multiplier_ceiling: 2.0 },
 		};
@@ -71,8 +71,8 @@ describe("computeForecastMultiplier", () => {
 		const fresh: Rules = {
 			post_forecast_adjustments: {
 				dow_multipliers: { Mon: 1, Tue: 1, Wed: 1, Thu: 1, Fri: 1, Sat: 1, Sun: 1 },
-				event_overrides: [],
-				sku_adjustments: [],
+				event_overrides: {},
+				sku_adjustments: {},
 			},
 			guardrails: { multiplier_floor: 0.5, multiplier_ceiling: 2.0 },
 		};
