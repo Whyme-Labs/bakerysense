@@ -18,7 +18,9 @@ export type AuditAction =
 	// any markdown / forecast explanation was suggested.
 	| "tool.invoked" | "tool.failed"
 	// Bake plan decision committed by the operator (Stage 5 agentic decision support).
-	| "bake_plan.committed" | "bake_plan.commit_failed";
+	| "bake_plan.committed" | "bake_plan.commit_failed"
+	// Self-evolving harness — inspection runs and proposal review outcomes.
+	| "harness.inspected" | "harness.proposal_approved" | "harness.proposal_rejected";
 
 export async function writeAudit(
 	env: CloudflareEnv,
