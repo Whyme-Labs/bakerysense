@@ -1,47 +1,47 @@
 {
-  "_comment": "Scene-anchored narration for the HarnessStory walkthrough. Cloned from reference.wav (the user's voice). Anchors map to scenes in HarnessStory.tsx.",
+  "_comment": "Cold-viewer-first, value-led narration. Conversational + TTS-friendly. Cloned from reference.wav. Scene order: hook → what you get → getting started → the magic → example → you decide → every shop → close.",
   "model_id": "openbmb/VoxCPM2",
   "language": "English",
   "sections": [
     {
       "id": "cold",
       "anchor": "cold",
-      "text": "Independent bakeries throw out nearly forty percent of what they bake. The waste isn't ignorance. It's uncertainty."
-    },
-    {
-      "id": "input",
-      "anchor": "input",
-      "text": "Here's how it works. First, connect your sales, a CSV export or your point of sale. Two weeks of history is enough to start."
+      "text": "If you run a bakery, every morning is the same gamble. How much do I bake? Make too much, you bin it. Too little, you turn customers away."
     },
     {
       "id": "plan",
       "anchor": "plan",
-      "text": "Every morning you get tomorrow's bake plan. Three options per item, each with the expected waste, stockout risk, and units sold."
+      "text": "BakerySense just tells you. Open it, and you see exactly how much to bake today. Ninety croissants, not a hundred and twenty. With the waste and sell-out risk already worked out."
+    },
+    {
+      "id": "input",
+      "anchor": "input",
+      "text": "Setup is simple. Connect your sales, a spreadsheet, or your point of sale, and it learns your shop."
     },
     {
       "id": "loop",
       "anchor": "loop",
-      "text": "Then it does what static tools don't. Every night it replays its own forecasts and finds where it systematically missed."
+      "text": "But here's what's special. It keeps getting smarter on its own. Every night, it checks its own guesses against what actually sold."
     },
     {
       "id": "review",
       "anchor": "review",
-      "text": "It proposes a correction, validated on held-out sales. Here, croissants ran high every Wednesday, and the fix cuts error from three percent to two."
+      "text": "Say it kept suggesting too many croissants every Wednesday. It spots the pattern, and proposes a fix, already tested on your real sales."
     },
     {
       "id": "approve",
       "anchor": "approve",
-      "text": "You approve in one tap. The next forecast applies it. Controlled, and fully auditable."
+      "text": "You just tap approve. Tomorrow's plan is better, and you're always in control."
     },
     {
       "id": "diverge",
       "anchor": "diverge",
-      "text": "And every shop evolves its own playbook. Bukit Bintang learned Wednesdays, Subang learned Sundays. Same model, different corrections."
+      "text": "Every shop is different, so each one learns its own habits. One learns Wednesdays, another learns Sundays."
     },
     {
       "id": "thesis",
       "anchor": "thesis",
-      "text": "The model stays frozen. The skills evolve. BakerySense, a self-evolving harness for perishable businesses."
+      "text": "That's BakerySense. It doesn't just predict. It learns your bakery, and gets better every day."
     }
   ]
 }
