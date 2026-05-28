@@ -47,3 +47,29 @@ The harness is vertical-agnostic. Any perishable, recurring-decision SME fits: c
 ## Team
 
 Whyme Labs.
+
+---
+
+## Platform field copy (paste-ready)
+
+- **Project name:** BakerySense
+- **Track:** Skills
+- **Tagline (≤120 chars):** A self-evolving operations harness for perishable SMEs — it learns each shop's quirks and proposes validated fixes for one-tap approval.
+- **Short description (~50 words):** BakerySense turns a bakery's sales history into tomorrow's bake plan, then learns from its own decisions. Every night it replays its traces, diagnoses systematic forecast misses, proposes a bounded correction, and validates it on held-out data — so each branch evolves its own skill set under human approval. Live, tested, on Cloudflare.
+- **Repo:** https://github.com/Whyme-Labs/bakerysense
+- **Live demo:** https://bakerysense.swmengappdev.workers.dev (sign in `demo@bs.co` / `Password2026Password`, slug `demo` → Admin → Harness)
+- **Video:** docs/demo/harness-story.mp4 (upload to the platform / a public host)
+- **Cover image:** docs/demo/cover.png
+
+## Submission checklist (platform = evol.epicconnector.ai)
+
+- [ ] **Confirm the real submission deadline** (event table says **Jun 1 23:59 SGT**; the on-page countdown implied ~Jun 10 — verify on the platform).
+- [ ] Register an account (email).
+- [ ] Apply (email, username, phone) — select the **Skills** track.
+- [ ] Team Up (solo is fine, or add up to 3).
+- [ ] When project submission opens, paste the field copy above (name, tagline, description, repo, live demo, video, cover).
+- [ ] Upload the video to a public host if the platform needs a URL.
+- [ ] Submit; confirm the final version is the one saved (multiple updates allowed before the deadline).
+- [ ] Share the project link to gather community votes (30% of score).
+
+> Registration/apply require your personal details, so those steps are yours to do. Everything else (repo, live demo, video, cover, copy) is ready.
