@@ -44,12 +44,12 @@
 		{
 			"binding": "DB",
 			"database_name": "bakerysense-v2",
-			"database_id": "REPLACE_WITH_NEW_D1_ID",
+			"database_id": "02caf191-e114-4db9-9bb9-ed80823be177",
 			"migrations_dir": "drizzle"
 		}
 	],
 	"kv_namespaces": [
-		{ "binding": "KV", "id": "REPLACE_WITH_NEW_KV_ID" }
+		{ "binding": "KV", "id": "2b82f5cd3f7e4189b515f46873b1e701" }
 	],
 	"triggers": {
 		"crons": []
@@ -81,13 +81,13 @@
 		"test": {
 			"main": "worker-test.js",
 			"kv_namespaces": [
-				{ "binding": "KV", "id": "REPLACE_WITH_NEW_KV_ID" }
+				{ "binding": "KV", "id": "2b82f5cd3f7e4189b515f46873b1e701" }
 			],
 			"d1_databases": [
 				{
 					"binding": "DB",
 					"database_name": "bakerysense-v2",
-					"database_id": "REPLACE_WITH_NEW_D1_ID",
+					"database_id": "02caf191-e114-4db9-9bb9-ed80823be177",
 					"migrations_dir": "drizzle"
 				}
 			],

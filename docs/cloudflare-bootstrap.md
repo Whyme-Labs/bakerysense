@@ -1,5 +1,16 @@
 # Cloudflare Bootstrap — bakerysense (UCWS repo)
 
+> **Provisioned 2026-05-28** on account `swmengappdev@gmail.com`
+> (`1e0170aaabc90ecf5f466128d1f0466a`). Live at
+> **https://bakerysense.swmengappdev.workers.dev**.
+> D1 `bakerysense-v2` (`02caf191-…`), KV `bakerysense-kv` (`2b82f5cd…`),
+> R2 `bakerysense-models-v2` + `-dev`, queues `bakerysense-{chat,retrain}-queue`
+> (+ DLQs). All 9 migrations applied. The 4 runtime secrets
+> (`JWKS_ENCRYPTION_KEY`, `CONNECTOR_MEK`, `SESSION_SIGNING_KEY`,
+> `OPS_ROTATE_SECRET`) were set to freshly-generated random values — rotate
+> with `npx wrangler secret put <NAME>` if needed. The steps below remain the
+> reference for re-provisioning from scratch.
+
 This repo deploys to a **separate Cloudflare project** from the Kaggle
 `gemma-4-hack` repo. The old repo owns `bakerysense-web` (Worker) + the
 D1 database `bakerysense` (id `0f9b74b1-fa75-4ff1-bbfb-87bd0e377890`) +
