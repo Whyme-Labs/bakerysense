@@ -1,14 +1,21 @@
 /**
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
-/**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * This file targets the UCWS BakerySense Cloudflare project — separate
+ * from the Kaggle gemma-4-hack repo's Worker. The old repo deploys to
+ * `bakerysense-web` + the D1 `bakerysense` (id 0f9b74b1-…); this repo
+ * deploys to `bakerysense` (the Worker) + the D1 `bakerysense-v2` plus
+ * fresh KV / R2 / queues so a stray `wrangler deploy` here can never
+ * touch the live Kaggle judging demo.
+ *
+ * Bootstrap commands are documented in docs/cloudflare-bootstrap.md.
+ * Replace every `REPLACE_WITH_…` placeholder below with the ids returned
+ * from `wrangler d1 create` / `wrangler kv namespace create`.
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "bakerysense-web",
+	"name": "bakerysense",
 	"account_id": "1e0170aaabc90ecf5f466128d1f0466a",
 	"main": "worker-entry.ts",
 	"compatibility_date": "2026-04-18",
@@ -21,101 +28,77 @@
 		"directory": ".open-next/assets"
 	},
 	"images": {
-		// Enable image optimization
-		// see https://opennext.js.org/cloudflare/howtos/image
 		"binding": "IMAGES"
 	},
 	"services": [
 		{
-			// Self-reference service binding, the service name must match the worker name
-			// see https://opennext.js.org/cloudflare/caching
 			"binding": "WORKER_SELF_REFERENCE",
-			"service": "bakerysense-web"
+			"service": "bakerysense"
 		}
 	],
 	"observability": {
 		"enabled": true
 	},
 	"upload_source_maps": true,
-	/**
-	 * Smart Placement
-	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": {  "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "bakerysense",
-			"database_id": "0f9b74b1-fa75-4ff1-bbfb-87bd0e377890",
+			"database_name": "bakerysense-v2",
+			"database_id": "REPLACE_WITH_NEW_D1_ID",
 			"migrations_dir": "drizzle"
 		}
 	],
 	"kv_namespaces": [
-		{ "binding": "KV", "id": "f07f4dea79ce40309aad6e595d0cb214" }
+		{ "binding": "KV", "id": "REPLACE_WITH_NEW_KV_ID" }
 	],
-	// JWKS cron disabled until we wire a separate Worker script for scheduled handlers;
-	// use POST /api/internal/rotate-jwks for manual rotation in the meantime.
 	"triggers": {
 		"crons": []
 	},
 	"queues": {
 		"producers": [
-			{ "binding": "CHAT_QUEUE",    "queue": "chat-queue" },
-			{ "binding": "RETRAIN_QUEUE", "queue": "retrain-queue" }
+			{ "binding": "CHAT_QUEUE",    "queue": "bakerysense-chat-queue" },
+			{ "binding": "RETRAIN_QUEUE", "queue": "bakerysense-retrain-queue" }
 		],
 		"consumers": [
 			{
-				"queue": "chat-queue",
+				"queue": "bakerysense-chat-queue",
 				"max_batch_size": 1,
 				"max_retries": 3,
-				"dead_letter_queue": "chat-dlq"
+				"dead_letter_queue": "bakerysense-chat-dlq"
 			},
 			{
-				"queue": "retrain-queue",
+				"queue": "bakerysense-retrain-queue",
 				"max_batch_size": 1,
 				"max_retries": 3,
-				"dead_letter_queue": "retrain-dlq"
+				"dead_letter_queue": "bakerysense-retrain-dlq"
 			}
 		]
 	},
 	"r2_buckets": [
-		{ "binding": "MODELS", "bucket_name": "bakerysense-models" }
+		{ "binding": "MODELS", "bucket_name": "bakerysense-models-v2" }
 	],
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
 	"env": {
 		"test": {
 			"main": "worker-test.js",
 			"kv_namespaces": [
-				{ "binding": "KV", "id": "f07f4dea79ce40309aad6e595d0cb214" }
+				{ "binding": "KV", "id": "REPLACE_WITH_NEW_KV_ID" }
 			],
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "bakerysense",
-					"database_id": "0f9b74b1-fa75-4ff1-bbfb-87bd0e377890",
+					"database_name": "bakerysense-v2",
+					"database_id": "REPLACE_WITH_NEW_D1_ID",
 					"migrations_dir": "drizzle"
 				}
 			],
 			"queues": {
 				"producers": [
-					{ "binding": "CHAT_QUEUE",    "queue": "chat-queue-test" },
-					{ "binding": "RETRAIN_QUEUE", "queue": "retrain-queue-test" }
+					{ "binding": "CHAT_QUEUE",    "queue": "bakerysense-chat-queue-test" },
+					{ "binding": "RETRAIN_QUEUE", "queue": "bakerysense-retrain-queue-test" }
 				]
 			},
 			"r2_buckets": [
-				{ "binding": "MODELS", "bucket_name": "bakerysense-models-dev" }
+				{ "binding": "MODELS", "bucket_name": "bakerysense-models-v2-dev" }
 			],
 			"vars": {
 				"JWKS_ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
