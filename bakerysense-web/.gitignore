@@ -41,8 +41,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# OpenNext
-/.open-next
+# OpenNext build output. Keep the assets/ directory itself present so the
+# cloudflare vitest pool can parse wrangler.jsonc on a fresh clone (the
+# directory must exist; contents don't matter for unit tests — they're
+# produced by `npm run build`). Exception order matters: un-ignore parent
+# dirs step by step before the file, since gitignore can't re-include a
+# file whose parent dir is excluded.
+/.open-next/*
+!/.open-next/assets/
+/.open-next/assets/*
+!/.open-next/assets/.gitkeep
 
 # wrangler files
 .wrangler
