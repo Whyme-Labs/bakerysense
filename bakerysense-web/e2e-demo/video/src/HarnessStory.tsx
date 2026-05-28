@@ -59,7 +59,8 @@ const D = {
 	diverge: motionDur("diverge", 185),
 	thesis: motionDur("thesis", 150),
 };
-export const HARNESS_STORY_FRAMES = Object.values(D).reduce((a, b) => a + b, 0);
+const BRAND_FRAMES = 60;
+export const HARNESS_STORY_FRAMES = BRAND_FRAMES + Object.values(D).reduce((a, b) => a + b, 0);
 
 const SceneVO: React.FC<{ anchor: string }> = ({ anchor }) => {
 	const e = voByAnchor.get(anchor);
@@ -95,6 +96,22 @@ const Kinetic: React.FC<{ words: { t: string; accent?: boolean }[]; startFrame?:
 				);
 			})}
 		</div>
+	);
+};
+
+// ---- 0. Brand intro (full logo on light) -----------------------------------
+const BrandIntro: React.FC = () => {
+	const frame = useCurrentFrame();
+	const { fps } = useVideoConfig();
+	const opacity = envelope(frame, BRAND_FRAMES, 10);
+	const s = spring({ frame, fps, config: { damping: 200 } });
+	return (
+		<AbsoluteFill style={{ opacity }}>
+			<Backdrop />
+			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+				<Img src={staticFile("logo-full.png")} style={{ width: 540, transform: `scale(${interpolate(s, [0, 1], [0.92, 1])})` }} />
+			</AbsoluteFill>
+		</AbsoluteFill>
 	);
 };
 
@@ -240,6 +257,7 @@ const Thesis: React.FC = () => {
 		<AbsoluteFill style={{ opacity }}>
 			<Backdrop dark />
 			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 26 }}>
+				<Img src={staticFile("logo-icon.png")} style={{ width: 128, marginBottom: 6 }} />
 				<Kinetic words={[{ t: "The" }, { t: "model" }, { t: "stays" }, { t: "frozen." }]} size={56} color="#fff8ee" />
 				<Kinetic startFrame={16} words={[{ t: "The" }, { t: "skills", accent: true }, { t: "evolve." }]} size={56} color="#fff8ee" />
 				<div style={{ height: 16 }} />
@@ -254,6 +272,7 @@ const Thesis: React.FC = () => {
 export const HarnessStory: React.FC = () => {
 	let f = 0;
 	const scenes: { node: React.ReactNode; dur: number; anchor: string }[] = [
+		{ node: <BrandIntro />, dur: BRAND_FRAMES, anchor: "" },
 		{ node: <ColdOpen />, dur: D.cold, anchor: "cold" },
 		{ node: <ClipScene src="recordings/input.webm" dur={D.input} step="Step 1 · connect" title="Connect your sales data" tagLabel="INPUT" tag="14+ days of sales · CSV or POS" tagColor={GREEN} />, dur: D.input, anchor: "input" },
 		{ node: <ClipScene src="recordings/plan.webm" dur={D.plan} step="Step 2 · plan" title="Tomorrow's bake plan" tagLabel="OUTPUT" tag="3 options / SKU · waste · stockout · units" tagColor={AMBER} />, dur: D.plan, anchor: "plan" },
