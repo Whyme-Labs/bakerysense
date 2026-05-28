@@ -22,3 +22,6 @@ video/public/voiceover/*.mp3
 video/public/voiceover/*.wav
 
 node_modules/
+
+# python TTS venv (local only)
+voiceover/.venv-vox/
