@@ -27,7 +27,7 @@
     "min_improvement_wape": 0.01
   },
   "windows": {
-    "evidence_days": [-7, -1],
-    "holdout_days":  [-30, -8]
+    "evidence_days": [-56, -1],
+    "holdout_days":  [-112, -57]
   }
 }

@@ -201,9 +201,14 @@ Manifest = **contract** (rarely changes). `rules.json` = **state** (evolves nigh
 ```
 function nightlyInspect(branch):
   # 1. PULL TRACES
+  # Windows are WEEKLY scale, not daily: (sku, dow) aggregation needs several
+  # weeks of the SAME weekday to reach min_evidence_rows. Evidence is the
+  # recent 8 weeks [-56,-1]; holdout is the disjoint 8 weeks before it
+  # [-112,-57]. (An earlier draft used [-7,-1]/[-30,-8] daily windows, which
+  # can never contain 5 same-(sku,dow) rows — corrected during implementation.)
   decisions = bake_plan_decisions WHERE branch_id = branch
-              AND date IN [last 7 days]
-  actuals   = sales WHERE branch_id = branch AND date IN [last 7 days]
+              AND date IN evidence_window [-56, -1]
+  actuals   = daily_actuals WHERE branch_id = branch AND date IN [-56, -1]
   joined    = decisions ⨝ actuals
 
   # 2. DIAGNOSE EACH MISS (EmbodiSkill)
@@ -258,11 +263,11 @@ function nightlyInspect(branch):
   )
 
   # 4. VALIDATE (SkillOpt's gate — strictly disjoint windows)
-  # Evidence window: days [-7, -1]   (used in step 2)
-  # Holdout window:  days [-30, -8]  (NEVER overlaps with evidence)
+  # Evidence window: days [-56, -1]   (used in step 2)
+  # Holdout window:  days [-112, -57] (NEVER overlaps with evidence)
   # Disjoint windows prevent the validator from confirming an edit using the
-  # same data that motivated it.
-  holdout = traces in [date - 30, date - 8]
+  # same data that motivated it. Holdout excludes stockout-censored rows.
+  holdout = traces in [date - 112, date - 57]
   before_wape = score(current_rules, holdout)
   after_rules = apply(current_rules, edit_ops)
   after_wape  = score(after_rules, holdout)
@@ -338,7 +343,7 @@ Two cuts of self-evolution (branch local + brand federation) in one demo, powere
   waste_units == 0`) — no schema change needed for stockout
 - Proposer guardrails: max_ops=3, max_delta=0.2, floor 0.5, ceiling 2.0,
   exploration probe every 7 runs (§6 step 3)
-- Validator: strictly disjoint windows (evidence [-7,-1], holdout [-30,-8])
+- Validator: strictly disjoint windows (evidence [-56,-1], holdout [-112,-57])
 - Gemma narrates diagnoses; never produces numeric edits
 - `/harness` page: list pending proposals + diff + approve/reject
 - Seed two branches with divergent 14-day mock histories
