@@ -1,42 +1,47 @@
 {
-  "_comment": "Scene-anchored narration for the HarnessStory composition. anchor maps to a scene in HarnessStory.tsx; audio plays during that scene. Timed roughly to scene durations at 30fps.",
+  "_comment": "Scene-anchored narration for the HarnessStory walkthrough. Cloned from reference.wav (the user's voice). Anchors map to scenes in HarnessStory.tsx.",
   "model_id": "openbmb/VoxCPM2",
   "language": "English",
   "sections": [
     {
       "id": "cold",
       "anchor": "cold",
-      "text": "Every independent bakery throws out nearly forty percent of what it bakes. The waste isn't ignorance. It's uncertainty."
+      "text": "Independent bakeries throw out nearly forty percent of what they bake. The waste isn't ignorance. It's uncertainty."
+    },
+    {
+      "id": "input",
+      "anchor": "input",
+      "text": "Here's how it works. First, connect your sales, a CSV export or your point of sale. Two weeks of history is enough to start."
+    },
+    {
+      "id": "plan",
+      "anchor": "plan",
+      "text": "Every morning you get tomorrow's bake plan. Three options per item, each with the expected waste, stockout risk, and units sold."
     },
     {
       "id": "loop",
       "anchor": "loop",
-      "text": "BakerySense closes the loop. Every night it replays its own decisions, diagnoses where the forecast missed, proposes a fix, and validates it, before a human ever sees it."
+      "text": "Then it does what static tools don't. Every night it replays its own forecasts and finds where it systematically missed."
     },
     {
-      "id": "product",
-      "anchor": "product",
-      "text": "This is the live product. Corrections it learned from the bakery's own sales, waiting for review."
-    },
-    {
-      "id": "catch",
-      "anchor": "catch",
-      "text": "At Bukit Bintang, croissants ran twenty-five percent high every Wednesday. The harness caught it, and a held-out test confirms the fix cuts error from three percent to two."
-    },
-    {
-      "id": "diverge",
-      "anchor": "diverge",
-      "text": "Same brand, same model. But each shop evolves its own playbook. Bukit Bintang learned Wednesdays. Subang learned Sundays."
+      "id": "review",
+      "anchor": "review",
+      "text": "It proposes a correction, validated on held-out sales. Here, croissants ran high every Wednesday, and the fix cuts error from three percent to two."
     },
     {
       "id": "approve",
       "anchor": "approve",
-      "text": "The harness proposes. The owner decides. Every edit is validated, and every edit is auditable."
+      "text": "You approve in one tap. The next forecast applies it. Controlled, and fully auditable."
+    },
+    {
+      "id": "diverge",
+      "anchor": "diverge",
+      "text": "And every shop evolves its own playbook. Bukit Bintang learned Wednesdays, Subang learned Sundays. Same model, different corrections."
     },
     {
       "id": "thesis",
       "anchor": "thesis",
-      "text": "The model stays frozen. The skills evolve. BakerySense. A self-evolving harness for perishable businesses."
+      "text": "The model stays frozen. The skills evolve. BakerySense, a self-evolving harness for perishable businesses."
     }
   ]
 }

@@ -3,42 +3,48 @@
     "id": "cold",
     "anchor": "cold",
     "audio_file": "cold.wav",
-    "duration_ms": 7360
+    "duration_ms": 7040
+  },
+  {
+    "id": "input",
+    "anchor": "input",
+    "audio_file": "input.wav",
+    "duration_ms": 11040
+  },
+  {
+    "id": "plan",
+    "anchor": "plan",
+    "audio_file": "plan.wav",
+    "duration_ms": 10080
   },
   {
     "id": "loop",
     "anchor": "loop",
     "audio_file": "loop.wav",
-    "duration_ms": 10720
+    "duration_ms": 9120
   },
   {
-    "id": "product",
-    "anchor": "product",
-    "audio_file": "product.wav",
-    "duration_ms": 6880
-  },
-  {
-    "id": "catch",
-    "anchor": "catch",
-    "audio_file": "catch.wav",
-    "duration_ms": 10080
-  },
-  {
-    "id": "diverge",
-    "anchor": "diverge",
-    "audio_file": "diverge.wav",
-    "duration_ms": 8640
+    "id": "review",
+    "anchor": "review",
+    "audio_file": "review.wav",
+    "duration_ms": 11200
   },
   {
     "id": "approve",
     "anchor": "approve",
     "audio_file": "approve.wav",
-    "duration_ms": 8320
+    "duration_ms": 6720
+  },
+  {
+    "id": "diverge",
+    "anchor": "diverge",
+    "audio_file": "diverge.wav",
+    "duration_ms": 12480
   },
   {
     "id": "thesis",
     "anchor": "thesis",
     "audio_file": "thesis.wav",
-    "duration_ms": 7360
+    "duration_ms": 8320
   }
 ]

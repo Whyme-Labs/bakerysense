@@ -33,21 +33,34 @@ def wav_duration_ms(path: Path) -> int:
 
 
 def main() -> int:
+    import os
     import soundfile as sf  # noqa: F401
     from voxcpm import VoxCPM
+
+    # Optional reference voice for cloning — keeps all clips in ONE voice.
+    # VoxCPM2's reference_wav_path works alone (no transcript needed).
+    ref = os.environ.get("REFERENCE_WAV")
+    if ref and not os.path.exists(ref):
+        raise FileNotFoundError(f"REFERENCE_WAV not found: {ref}")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     script = json.loads(SCRIPT_PATH.read_text())
     sections = script["sections"]
 
     print("Loading VoxCPM2 (first run downloads weights)...")
+    if ref:
+        print(f"Cloning voice from reference: {ref}")
     model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False)
+
+    kw = {"cfg_value": 2.0, "inference_timesteps": 10}
+    if ref:
+        kw["reference_wav_path"] = ref
 
     manifest = []
     for s in sections:
         out = OUT_DIR / f"{s['id']}.wav"
         print(f"  → {s['id']}: {s['text'][:60]}...")
-        wav = model.generate(text=s["text"], cfg_value=2.0, inference_timesteps=10)
+        wav = model.generate(text=s["text"], **kw)
         sf.write(str(out), wav, model.tts_model.sample_rate)
         manifest.append({
             "id": s["id"],
