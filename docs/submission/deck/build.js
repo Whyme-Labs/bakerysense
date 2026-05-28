@@ -50,9 +50,9 @@ function framed(slide, file, x, y, w, h) {
 
 // ===== Slide 1 — Title (dark) =====
 let s = p.addSlide(); bg(s, INK);
-dot(s, M, M + 0.04, AMBER);
-s.addText("UCWS SINGAPORE 2026  ·  SKILLS TRACK", { x: M + 0.28, y: M - 0.06, w: 8, h: 0.4, fontFace: MONO, fontSize: 12, color: AMBER, bold: true, charSpacing: 2 });
-s.addText("BakerySense", { x: M, y: 2.2, w: 11, h: 1.4, fontFace: HFONT, fontSize: 72, bold: true, color: WHITE });
+s.addImage({ path: path.join(__dirname, "logo-icon.png"), x: M, y: M - 0.1, w: 1.3, h: 1.21 });
+s.addText("UCWS SINGAPORE 2026  ·  SKILLS TRACK", { x: M + 1.55, y: M + 0.32, w: 9, h: 0.4, fontFace: MONO, fontSize: 12, color: AMBER, bold: true, charSpacing: 2 });
+s.addText("BakerySense", { x: M, y: 2.3, w: 11, h: 1.4, fontFace: HFONT, fontSize: 72, bold: true, color: WHITE });
 s.addText([
 	{ text: "A self-evolving operations harness", options: { color: CREAMTEXT } },
 	{ text: " for bakeries and perishable SMEs.", options: { color: AMBER } },
@@ -165,6 +165,7 @@ s.addText("Real product value · execution quality · global scalability.", { x:
 
 // ===== Slide 9 — Close (dark) =====
 s = p.addSlide(); bg(s, INK);
+s.addImage({ path: path.join(__dirname, "logo-icon.png"), x: 11.4, y: 0.55, w: 1.35, h: 1.26 });
 s.addText("GET STARTED", { x: M, y: 1.55, w: 6, h: 0.4, fontFace: MONO, fontSize: 13, color: AMBER, bold: true, charSpacing: 2 });
 s.addText("Try it in 30 seconds", { x: M, y: 1.95, w: 11.5, h: 1.0, fontFace: HFONT, fontSize: 48, bold: true, color: WHITE });
 s.addText([
