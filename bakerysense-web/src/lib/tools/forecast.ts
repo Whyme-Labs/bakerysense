@@ -17,6 +17,13 @@ import {
 import { priorForecast } from "@/lib/corpus-prior";
 import { isTimesFmConfigured, predictTimesFM, TimesFmUnavailableError } from "@/lib/forecasters/timesfm";
 import { loadActualsHistory } from "@/lib/actuals";
+import { loadEffectiveRules } from "@/lib/harness/registry";
+import {
+  computeForecastMultiplier,
+  applyForecastOverlay,
+  resolveCostRatio,
+  type ForecastOverlay,
+} from "@/lib/harness/overlay";
 
 /** Tier 6: which quantiles get routed to TimesFM (vs the V1 GBM).
  *  Empirical (scripts/benchmark_timesfm.py): TimesFM-2 has better q0.8/q0.9
@@ -58,6 +65,15 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
       branch_id,
     );
 
+    // Harness-learned overlay: a multiplicative residual correction on top
+    // of the forecaster output, plus an optional cost-ratio override. Rules
+    // resolve brand defaults × branch overrides; a fresh tenant's rules are
+    // all 1.0 (a no-op). activeEvents wiring (festivals) is deferred — pass
+    // [] for now. See docs/architecture/self-evolving-harness.md §6.
+    const rules = await loadEffectiveRules(ctx.env, ctx.tenantId, branch_id, "forecast");
+    const costRatio = resolveCostRatio(rules, ctx.costRatio);
+    const overlay = computeForecastMultiplier(rules, sku, on_date, []);
+
     const stageInfo = await resolveStage(ctx.env, ctx.tenantId, branch_id, sku);
 
     // No-data and cold stages: bypass the GBM entirely. Even if a feature
@@ -65,10 +81,12 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     // GBM hasn't been calibrated against this tenant's reality yet.
     if (stageInfo.stage === "no_data" || stageInfo.stage === "cold") {
       const cold = coldStartForecast(sku, on_date, stageInfo);
-      const { quantity, quantile } = orderQuantity(cold.quantiles, ctx.costRatio.cu, ctx.costRatio.co);
-      return assembleResponse(sku, on_date, branch_id, cold.quantiles, quantity, quantile, ctx.costRatio, stageInfo, cold.forecaster, {
+      const adjusted = applyForecastOverlay(cold.quantiles, overlay);
+      const { quantity, quantile } = orderQuantity(adjusted, costRatio.cu, costRatio.co);
+      return assembleResponse(sku, on_date, branch_id, adjusted, quantity, quantile, costRatio, stageInfo, cold.forecaster, {
         matched_family: cold.matched_family,
         is_default_family: cold.is_default_family,
+        harness_overlay: overlaySummary(overlay),
       });
     }
 
@@ -79,10 +97,12 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     const row = getFeatureRow(store, branch_id, sku, on_date);
     if (!row) {
       const cold = coldStartForecast(sku, on_date, { ...stageInfo, stage: "cold", band_multiplier: 1.3 });
-      const { quantity, quantile } = orderQuantity(cold.quantiles, ctx.costRatio.cu, ctx.costRatio.co);
-      return assembleResponse(sku, on_date, branch_id, cold.quantiles, quantity, quantile, ctx.costRatio, { ...stageInfo, stage: "cold", banner: "Feature row unavailable — falling back to population prior." }, cold.forecaster, {
+      const adjusted = applyForecastOverlay(cold.quantiles, overlay);
+      const { quantity, quantile } = orderQuantity(adjusted, costRatio.cu, costRatio.co);
+      return assembleResponse(sku, on_date, branch_id, adjusted, quantity, quantile, costRatio, { ...stageInfo, stage: "cold", banner: "Feature row unavailable — falling back to population prior." }, cold.forecaster, {
         matched_family: cold.matched_family,
         is_default_family: cold.is_default_family,
+        harness_overlay: overlaySummary(overlay),
       });
     }
 
@@ -145,16 +165,34 @@ export const tool: ToolImpl<z.infer<typeof ArgsSchema>> = {
     // tighten automatically once the tenant is mature.
     const finalQ = widenQuantiles(blended, stageInfo.band_multiplier);
 
-    const { quantity, quantile } = orderQuantity(finalQ, ctx.costRatio.cu, ctx.costRatio.co);
+    // Harness overlay applies AFTER band widening and BEFORE newsvendor —
+    // the learned correction operates on the forecaster's final quantiles.
+    const adjusted = applyForecastOverlay(finalQ, overlay);
+    const { quantity, quantile } = orderQuantity(adjusted, costRatio.cu, costRatio.co);
     const forecaster = maturity === 0
       ? "population_prior_v1"
       : tfmApplied ? "perq_blend_v2" : "perq_blend_v1";
-    return assembleResponse(sku, on_date, branch_id, finalQ, quantity, quantile, ctx.costRatio, stageInfo, forecaster, {
+    return assembleResponse(sku, on_date, branch_id, adjusted, quantity, quantile, costRatio, stageInfo, forecaster, {
       blend_alpha: Math.round(maturity * 100) / 100,
       timesfm_tail: tfmApplied,
+      harness_overlay: overlaySummary(overlay),
     });
   },
 };
+
+// Compact overlay breakdown for the response / trace. Omitted-when-noop
+// keeps responses clean for fresh tenants while still surfacing the
+// learned correction (and any clamp) once the harness has evolved a rule.
+function overlaySummary(overlay: ForecastOverlay): Record<string, unknown> | undefined {
+  if (overlay.multiplier === 1 && !overlay.factors.clamped) return undefined;
+  return {
+    multiplier: Math.round(overlay.multiplier * 1000) / 1000,
+    dow: overlay.factors.dow,
+    events: overlay.factors.events,
+    sku: overlay.factors.sku,
+    clamped: overlay.factors.clamped,
+  };
+}
 
 function assembleResponse(
   sku: string,
