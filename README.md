@@ -13,7 +13,7 @@ Originally built for the Gemma 4 Good Hackathon; now extended into a self-evolvi
 - **App:** <https://bakerysense.swmengappdev.workers.dev>
 - **Harness walkthrough:** sign in → **Admin → Harness** (`/t/demo/admin/harness`). Two branches have already evolved *different* corrections — Bukit Bintang learned Wednesdays, Subang learned Sundays. Guide: [`docs/demo-harness.md`](docs/demo-harness.md).
 - **Architecture:** [`docs/architecture/self-evolving-harness.md`](docs/architecture/self-evolving-harness.md) — the full diagnose → propose → validate → approve loop.
-- **Demo video:** dynamic motion-graphic cut at `bakerysense-web/e2e-demo/output/harness-story.mp4` (pipeline: [`bakerysense-web/e2e-demo/README.md`](bakerysense-web/e2e-demo/README.md)).
+- **Demo video:** [`docs/demo/harness-story.mp4`](docs/demo/harness-story.mp4) — dynamic motion-graphic cut of the harness loop (pipeline: [`bakerysense-web/e2e-demo/README.md`](bakerysense-web/e2e-demo/README.md)).
 
 Demo credentials: `demo@bs.co` / `Password2026Password` — tenant slug `demo`, `tenant_admin`.
 
