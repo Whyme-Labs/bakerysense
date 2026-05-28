@@ -1,6 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
 import { TestVideo, computeChatTotalFrames, audioPaddedFrames } from "./TestVideo";
+import { HarnessStory, HARNESS_STORY_FRAMES } from "./HarnessStory";
 import type { TimingEntry } from "./types";
 import defaultTiming from "../public/timing-data.json";
 
@@ -54,18 +55,28 @@ function computeTotalFrames(timingData: TimingEntry[]): number {
 
 export const RemotionRoot: React.FC = () => {
   return (
-    <Composition
-      id="TestVideo"
-      component={TestVideo}
-      fps={FPS}
-      width={1440}
-      height={900}
-      defaultProps={{
-        timingData: defaultTiming as TimingEntry[],
-      }}
-      calculateMetadata={({ props }) => ({
-        durationInFrames: computeTotalFrames(props.timingData),
-      })}
-    />
+    <>
+      <Composition
+        id="TestVideo"
+        component={TestVideo}
+        fps={FPS}
+        width={1440}
+        height={900}
+        defaultProps={{
+          timingData: defaultTiming as TimingEntry[],
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: computeTotalFrames(props.timingData),
+        })}
+      />
+      <Composition
+        id="HarnessStory"
+        component={HarnessStory}
+        fps={FPS}
+        width={1440}
+        height={900}
+        durationInFrames={HARNESS_STORY_FRAMES}
+      />
+    </>
   );
 };
