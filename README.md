@@ -248,7 +248,7 @@ The production system's value is the **wiring**: drop V1.5 in for retail tenants
 
 ## License
 
-[CC-BY-4.0](./LICENSE). Competition winners are required to release their submission under this license ([Rules §2.5](https://www.kaggle.com/competitions/gemma-4-good-hackathon/rules)).
+[CC-BY-4.0](./LICENSE).
 
 ## Status
 
@@ -264,7 +264,7 @@ The production system's value is the **wiring**: drop V1.5 in for retail tenants
 - V2 forecasting architecture (Sprints 0/1/3/4 shipped, Sprint 2 stubbed) — feature registry + per-tenant availability mask; cold-start router with population-prior fallback for new tenants; Open-Meteo weather ingestion + cultural festival lookup; hierarchical reconciliation (bottom-up + OLS-MinT); TimesFM-2 backbone interface stub. See [`docs/architecture/v2-migration.md`](docs/architecture/v2-migration.md). 39 new unit tests; total 104.
 - V1.5 head-to-head benchmark — added `scripts/benchmark_vs_baselines.py` to fit AutoARIMA / AutoETS / CrostonClassic / SeasonalNaive per-SKU on the same 28-day × 20-SKU holdout, plus four accuracy upgrades: **(Tier 1)** maturity-weighted blend of population prior + GBM on warm/mature tenants; **(Tier 2)** added `lag_365` to the GBM features for year-over-year seasonality; **(Tier 3)** real Open-Meteo weather backfill (Paris archive) replaces the constant `temp_c=15.0 / precip_mm=0.0` placeholders — `humidity`, `wind_kmh`, `is_storm` columns flow through the GBM and the production V2 pipeline; **(Tier 4)** per-quantile alpha — at maturity the median stays with the prior (lower WAPE) and the tails switch to the GBM (calibrated q0.9 for newsvendor). The Tier 4 mature-tenant forecaster posts WAPE **0.2121 / MASE 0.623 / pinball-q0.9 1.15** — better median than every baseline including pure GBM, same calibrated tail as pure GBM. 14 new unit tests on the per-quantile blend; total 178.
 
-**Week 3 / 4** (remaining)
-- Record the demo video with the bakery owner against `docs/demo/script.md` / `storyboard.md`
-- Deploy to Cloudflare Workers, seed the demo tenant, update the Live demo URL above
-- Stretch: QLoRA fine-tune via Unsloth on bakery vocabulary · Ollama modelfile packaging · TimesFM cold-start sidecar · markdown policy calibration
+**UCWS extension** (self-evolving harness)
+- Diagnose → propose → validate → approve loop over skill artifacts; per-branch skill evolution with brand inheritance. See [`docs/architecture/self-evolving-harness.md`](docs/architecture/self-evolving-harness.md).
+- Live deploy + demo data + dynamic demo video ([`bakerysense-web/e2e-demo`](bakerysense-web/e2e-demo)). Submission materials in [`docs/submission`](docs/submission).
+- Stretch: Gemma-narrated diagnosis summaries · brand-promotion proposals · evolution metrics on the dashboard.

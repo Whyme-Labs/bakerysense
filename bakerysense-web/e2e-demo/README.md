@@ -1,104 +1,44 @@
-# e2e-demo — demo video pipeline
+# e2e-demo — demo video + capture pipeline
 
-Produces `docs/demo/demo-final.mp4` from the live deployed app. B-roll, intro, outro, captions, and time-remap (chat speedup) are all built into the Remotion composition — no ffmpeg post-stitch step.
+Produces the UCWS demo video `docs/demo/harness-story.mp4` and the product
+screenshots used in the pitch deck / submission.
 
-Not to be confused with [`bakerysense-web/e2e/`](../e2e/README.md), which holds the Playwright test suite run in CI.
+Not to be confused with [`../e2e/`](../e2e/README.md), the Playwright test
+suite run in CI.
 
-## Pipeline
+## Pieces
 
-```
-┌────────────────┐   record.ts        ┌──────────────────────┐
-│ Deployed app   │ ─────────────────▶ │ recordings/          │
-│ (favorita seed)│                    │   session.webm       │
-└────────────────┘                    │ timing-data.json     │
-                                      │ screenshots/*.png    │
-                                      └──────────────────────┘
-                                              │ compose.ts
-                                              ▼
-                            ┌──────────────────────────────┐
-                            │ video/public/recordings/     │  session.webm + timing
-                            │ video/public/timing-data.json│  (Remotion reads these)
-                            └──────────────────────────────┘
-                                              │ npm run render
-                                              ▼
-                            ┌──────────────────────────────┐
-                            │ output/demo-full.mp4         │  Remotion composition:
-                            │                              │  intro + B-roll + scenarios
-                            │                              │  + captions + outro
-                            └──────────────────────────────┘
-                                              │ cp
-                                              ▼
-                            ┌──────────────────────────────┐
-                            │ docs/demo/demo-final.mp4     │  published copy (linked from README)
-                            └──────────────────────────────┘
-```
+| File | Purpose |
+|------|---------|
+| `video/src/HarnessStory.tsx` | The Remotion composition — a dynamic, frame-driven motion-graphic spine (cold-open → self-evolving loop → live `/harness` reveal → WAPE count-down + diff → branch divergence → approval → thesis) that weaves in real product screenshots + VoxCPM2 voiceover. |
+| `video/src/Root.tsx` | Registers the `HarnessStory` composition. |
+| `capture-harness.ts` | Playwright: signs into the live demo tenant and screenshots `/harness` (full + each proposal card) into `video/public/captures/`. |
+| `capture-submission.ts` | Playwright: captures the dashboard bake plan, harness page, and model/lineage into `docs/submission/screenshots/`. |
+| `voiceover/harness-script.json` | Scene-anchored narration text. |
+| `voiceover/generate_voxcpm.py` | Generates narration with VoxCPM2 → `video/public/vo-harness/*.wav` + `manifest.json`. |
 
-## One-shot rebuild
+## Rebuild the video
 
 ```bash
-cd bakerysense-web
-bash e2e-demo/build.sh
+cd bakerysense-web/e2e-demo
+
+# 1. (optional) refresh product captures from the live app
+npx tsx capture-harness.ts
+
+# 2. (optional) regenerate voiceover (downloads VoxCPM2 weights on first run)
+pip install voxcpm soundfile
+python3 voiceover/generate_voxcpm.py
+
+# 3. render
+cd video
+npm install            # first run only
+npx remotion render src/index.ts HarnessStory ../output/harness-story.mp4 --crf=23
+
+# 4. publish
+cp ../output/harness-story.mp4 ../../../docs/demo/harness-story.mp4
 ```
 
-This runs all four steps and publishes to `docs/demo/demo-final.mp4`. Takes ~5 minutes (chat scenario waits for real Gemma 4).
+Preview interactively with `npx remotion studio src/index.ts` from `video/`.
 
-## Step-by-step rebuild
-
-```bash
-cd bakerysense-web
-
-# 1. Record: drives Playwright against the live deploy, captures session.webm.
-npx tsx e2e-demo/record.ts
-
-# 2. Compose: copies session.webm + timing-data.json into Remotion public/.
-#    Remotion does the per-scenario cutting via OffthreadVideo startFrom.
-npx tsx e2e-demo/compose.ts
-
-# 3. Render: Remotion composes intro + B-roll + per-scenario clips with
-#    captions + outro into a single mp4 at e2e-demo/output/demo-full.mp4.
-cd e2e-demo/video
-npm install   # first run only
-npm run render
-
-# 4. Publish: copy to the canonical docs location.
-cd ../..
-cp e2e-demo/output/demo-full.mp4 ../docs/demo/demo-final.mp4
-```
-
-## Files
-
-| File | Purpose | Tracked? |
-|------|---------|----------|
-| `record.ts` | Playwright recorder — walks 7 scenarios against the live URL | ✓ |
-| `compose.ts` | Copies session.webm + timing-data.json into video/public/ | ✓ |
-| `build.sh` | One-shot: record + compose + render + publish | ✓ |
-| `test-plan.json` | Scenario steps with selectors + dwell times | ✓ |
-| `captions.json` | Per-step VO-style caption overrides | ✓ |
-| `video/` | Remotion composition (intro, B-roll, title cards, outro, captions) | ✓ |
-| `recordings/` | Raw session.webm from the recorder | ✗ (gitignored) |
-| `screenshots/` | Per-step Playwright screenshots | ✗ (gitignored) |
-| `timing-data.json` | Auto-generated by record.ts | ✗ (gitignored) |
-| `error-log.json`, `test-report.md` | Auto-generated | ✗ (gitignored) |
-| `output/demo-full.mp4` | Remotion render output (canonical) | ✗ (gitignored) |
-| `video/public/recordings/session.webm` | Copy of session.webm for Remotion | ✗ (gitignored) |
-| `docs/demo/demo-final.mp4` | Published copy linked from README | ✓ |
-
-## B-roll
-
-AI-generated on-cam bakery shots live at `docs/demo/broll/*.mp4` — generated via OpenRouter's video API with `alibaba/wan-2.6`. Regenerate with:
-
-```bash
-OPENROUTER_API_KEY=sk-or-... python3 scripts/generate_broll.py
-```
-
-Budget-capped at $4.50. Prompts in the `STORYBOARD` array of that script; the current run cost $3.00 for 25s of footage. Ledger at `docs/demo/broll/ledger.json`.
-
-The Remotion composition (`video/src/TestVideo.tsx`) loads these directly via `<OffthreadVideo>` — no ffmpeg stitching step.
-
-## What you can edit
-
-- `captions.json` — per-step caption text overrides
-- `test-plan.json` — add/remove scenario steps
-- `video/src/TestVideo.tsx` — intro/outro/title-card styling, B-roll timing, caption position
-
-Don't touch `../e2e/` from this pipeline — that's the Playwright test suite run by CI and `npm run test:e2e`, unrelated to video production.
+All animation is frame-driven (`useCurrentFrame` / `interpolate` / `spring`) —
+no CSS transitions, which don't render in Remotion.
