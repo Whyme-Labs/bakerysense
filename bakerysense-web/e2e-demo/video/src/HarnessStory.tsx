@@ -44,8 +44,8 @@ function voFrames(a: string): number {
 }
 const dur = (a: string, min: number) => Math.max(min, voFrames(a));
 
-// Recorded clip lengths (seconds).
-const CLIP_SEC: Record<string, number> = { input: 8.04, plan: 9.32, review: 8.64, approve: 8.08 };
+// Recorded clip lengths (seconds) — rich natural-speed interactions.
+const CLIP_SEC: Record<string, number> = { plan: 27.64, input: 19.08, review: 17.44, approve: 10.52 };
 
 const D = {
 	cold: dur("cold", 200),
@@ -130,8 +130,9 @@ const RealClip: React.FC<{ src: string; clipKey: string; sceneFrames: number; ki
 	const frame = useCurrentFrame();
 	const opacity = env(frame, sceneFrames);
 	const clipFrames = Math.ceil(CLIP_SEC[clipKey] * FPS);
-	// Stretch the clip to fill the (longer) scene so it never freezes.
-	const rate = Math.max(0.4, Math.min(1, clipFrames / (sceneFrames - 30)));
+	// Fit the clip into the scene with at most mild speed change, so the full
+	// interaction (including the payoff) plays and never freezes or drags.
+	const rate = Math.max(0.7, Math.min(1.4, clipFrames / sceneFrames));
 	const zoom = interpolate(frame, [10, sceneFrames], [1.0, 1.05], { extrapolateRight: "clamp", easing: EASE });
 	return (
 		<AbsoluteFill style={{ opacity }}>
