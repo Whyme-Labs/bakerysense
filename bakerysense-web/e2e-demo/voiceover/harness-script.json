@@ -1,47 +1,47 @@
 {
-  "_comment": "Cold-viewer-first, value-led narration. Conversational + TTS-friendly. Cloned from reference.wav. Scene order: hook → what you get → getting started → the magic → example → you decide → every shop → close.",
+  "_comment": "Spoken-word narration. Short complete sentences, natural breaks + contractions (how people actually talk), no trailing participle clauses or comma pile-ups, numbers spelled out. Cloned from reference.wav via fp16.",
   "model_id": "openbmb/VoxCPM2",
   "language": "English",
   "sections": [
     {
       "id": "cold",
       "anchor": "cold",
-      "text": "If you run a bakery, every morning is the same gamble. How much do I bake? Make too much, you bin it. Too little, you turn customers away."
+      "text": "Every morning, a baker asks the same question. How much should I bake today? Bake too much, and it goes in the bin. Bake too little, and customers leave with nothing."
     },
     {
       "id": "plan",
       "anchor": "plan",
-      "text": "BakerySense just tells you. Open it, and you see exactly how much to bake today. Ninety croissants, not a hundred and twenty. With the waste and sell-out risk already worked out."
+      "text": "BakerySense gives you the answer. Open the app, and it tells you exactly how much to bake. Today, that's ninety croissants. Not a hundred and twenty. It even shows how much you'd waste, and how likely you are to sell out."
     },
     {
       "id": "input",
       "anchor": "input",
-      "text": "Setup is simple. Connect your sales, a spreadsheet, or your point of sale, and it learns your shop."
+      "text": "Getting started is easy. Just upload your sales, or connect your till. Give it two weeks of history, and it learns how your shop works."
     },
     {
       "id": "loop",
       "anchor": "loop",
-      "text": "But here's what's special. It keeps getting smarter on its own. Every night, it checks its own guesses against what actually sold."
+      "text": "But here's the clever part. It keeps getting better on its own. Every night, it looks back at what it predicted. Then it compares that to what really sold."
     },
     {
       "id": "review",
       "anchor": "review",
-      "text": "Say it kept suggesting too many croissants every Wednesday. It spots the pattern, and proposes a fix, already tested on your real sales."
+      "text": "Let's say it kept making too many croissants on Wednesdays. It notices the pattern. So it suggests a fix. And it tests that fix on your past sales first."
     },
     {
       "id": "approve",
       "anchor": "approve",
-      "text": "You just tap approve. Tomorrow's plan is better, and you're always in control."
+      "text": "You just tap approve. And tomorrow's plan gets a little smarter. You're always the one in control."
     },
     {
       "id": "diverge",
       "anchor": "diverge",
-      "text": "Every shop is different, so each one learns its own habits. One learns Wednesdays, another learns Sundays."
+      "text": "And every shop is different. So each one learns its own rhythm. This one learned Wednesdays. That one learned Sundays."
     },
     {
       "id": "thesis",
       "anchor": "thesis",
-      "text": "That's BakerySense. It doesn't just predict. It learns your bakery, and gets better every day."
+      "text": "That's BakerySense. It doesn't just guess what to bake. It learns your bakery. And it gets better every single day."
     }
   ]
 }
