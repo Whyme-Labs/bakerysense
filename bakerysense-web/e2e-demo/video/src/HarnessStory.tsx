@@ -257,35 +257,50 @@ const LoopDiagram: React.FC = () => {
 	);
 };
 
-// ---- Divergence — real screenshots of both proposal cards ------------------
+// ---- Divergence — large readable native cards (styled like the app) --------
 const Divergence: React.FC = () => {
 	const frame = useCurrentFrame();
+	const { fps } = useVideoConfig();
 	const opacity = env(frame, D.diverge);
 	const titleS = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: "clamp" });
-	const card = (src: string, name: string, diff: string, appear: number, align: "left" | "right") => {
-		const s = spring({ frame: frame - appear, fps: 30, config: { damping: 200 } });
+	const card = (
+		shop: string, day: string, pct: string, wapeFrom: string, wapeTo: string, appear: number, align: "left" | "right",
+	) => {
+		const s = spring({ frame: frame - appear, fps, config: { damping: 200 } });
 		const dx = interpolate(s, [0, 1], [align === "left" ? -50 : 50, 0]);
 		return (
-			<div style={{ flex: 1, opacity: s, transform: `translateX(${dx}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: 26 }}>
-				<div style={{ fontFamily: FONT, fontSize: 28, fontWeight: 700, color: "#fff8ee" }}>{name}</div>
-				<div style={{ width: 560, borderRadius: 12, overflow: "hidden", border: `2px solid ${AMBER}`, boxShadow: "0 16px 44px oklch(0.08 0.02 60 / 0.55)" }}>
-					<Img src={staticFile(src)} style={{ width: "100%", display: "block" }} />
+			<div style={{ width: 540, opacity: s, transform: `translateX(${dx}px)`, background: "#fff", borderRadius: 18, padding: "30px 34px", border: `2px solid ${AMBER}`, boxShadow: "0 24px 60px oklch(0.08 0.02 60 / 0.5)" }}>
+				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+					<div style={{ fontFamily: MONO, fontSize: 16, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em" }}>forecast · {shop}</div>
+					<div style={{ fontFamily: MONO, fontSize: 16, color: MUTED }}>WAPE <span style={{ color: MUTED }}>{wapeFrom}</span> <span style={{ color: GREEN, fontWeight: 700 }}>{wapeTo}</span></div>
 				</div>
-				<div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700, color: AMBER }}>{diff}</div>
+				<div style={{ fontFamily: FONT, fontSize: 30, fontWeight: 700, color: INK, marginTop: 14 }}>Croissants, every <span style={{ color: AMBER_D }}>{day}</span></div>
+				<div style={{ fontFamily: FONT, fontSize: 18, color: "oklch(0.45 0.02 60)", marginTop: 6 }}>forecast ran {pct} too high</div>
+				<div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18, fontFamily: MONO, fontSize: 26 }}>
+					<span style={{ color: MUTED }}>bake</span>
+					<span style={{ color: RED, textDecoration: "line-through" }}>1.00×</span>
+					<span style={{ color: MUTED }}>→</span>
+					<span style={{ color: GREEN, fontWeight: 800 }}>0.80×</span>
+				</div>
 			</div>
 		);
 	};
 	return (
 		<AbsoluteFill style={{ opacity }}>
 			<Backdrop dark />
-			<div style={{ position: "absolute", top: 50, width: "100%", textAlign: "center", opacity: titleS }}>
+			<div style={{ position: "absolute", top: 70, width: "100%", textAlign: "center", opacity: titleS }}>
 				<div style={{ fontFamily: MONO, fontSize: 16, color: AMBER, letterSpacing: "0.16em", textTransform: "uppercase" }}>Same app · different shops</div>
-				<div style={{ fontFamily: FONT, fontSize: 40, fontWeight: 700, color: "#fff8ee", marginTop: 6 }}>Each one learns its own habits</div>
+				<div style={{ fontFamily: FONT, fontSize: 42, fontWeight: 700, color: "#fff8ee", marginTop: 8 }}>Each one learns its own habits</div>
 			</div>
-			<AbsoluteFill style={{ flexDirection: "row", alignItems: "center", paddingTop: 80 }}>
-				{card("captures/harness-card-2.png", "Bukit Bintang", "eased off Wednesdays", 18, "left")}
-				<div style={{ width: 2, height: 220, background: "oklch(0.4 0.02 60)" }} />
-				{card("captures/harness-card-1.png", "Subang Jaya", "eased off Sundays", 40, "right")}
+			<AbsoluteFill style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 28, paddingTop: 56 }}>
+				<div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+					<div style={{ fontFamily: FONT, fontSize: 26, fontWeight: 700, color: "#fff8ee" }}>Bukit Bintang</div>
+					{card("Bukit Bintang", "Wednesday", "20%", "3.0%", "2.0%", 18, "left")}
+				</div>
+				<div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+					<div style={{ fontFamily: FONT, fontSize: 26, fontWeight: 700, color: "#fff8ee" }}>Subang Jaya</div>
+					{card("Subang Jaya", "Sunday", "23%", "3.4%", "2.2%", 40, "right")}
+				</div>
 			</AbsoluteFill>
 		</AbsoluteFill>
 	);
