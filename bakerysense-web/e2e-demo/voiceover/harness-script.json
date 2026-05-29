@@ -1,47 +1,47 @@
 {
-  "_comment": "Spoken-word narration. Short complete sentences, natural breaks + contractions (how people actually talk), no trailing participle clauses or comma pile-ups, numbers spelled out. Cloned from reference.wav via fp16.",
+  "_comment": "Humanized via the humanizer skill. Warm if/then phrasing, concrete verbs, spoken rhythm, contractions, numbers spelled out. Cloned from reference.wav via fp16.",
   "model_id": "openbmb/VoxCPM2",
   "language": "English",
   "sections": [
     {
       "id": "cold",
       "anchor": "cold",
-      "text": "Every morning, a baker asks the same question. How much should I bake today? Bake too much, and it goes in the bin. Bake too little, and customers leave with nothing."
+      "text": "If you run a bakery, every morning starts with the same guess. How much should I bake today? Because if you bake too much, the leftovers just get thrown out. And if you don't bake enough, you run out, and you're turning customers away."
     },
     {
       "id": "plan",
       "anchor": "plan",
-      "text": "BakerySense gives you the answer. Open the app, and it tells you exactly how much to bake. Today, that's ninety croissants. Not a hundred and twenty. It even shows how much you'd waste, and how likely you are to sell out."
+      "text": "This is where BakerySense comes in. You open the app, and it tells you exactly how much to bake. So today, it might say ninety croissants, instead of the hundred and twenty you made yesterday. And it shows you how much you'd waste, and how likely you are to sell out."
     },
     {
       "id": "input",
       "anchor": "input",
-      "text": "Getting started is easy. Just upload your sales, or connect your till. Give it two weeks of history, and it learns how your shop works."
+      "text": "And getting started is easy. You just upload your past sales, or connect your till. Give it a couple of weeks of history, and it starts to learn how your shop runs."
     },
     {
       "id": "loop",
       "anchor": "loop",
-      "text": "But here's the clever part. It keeps getting better on its own. Every night, it looks back at what it predicted. Then it compares that to what really sold."
+      "text": "But here's the part that makes it really special. Every night, all on its own, it looks back at what it guessed, and checks it against what you actually sold."
     },
     {
       "id": "review",
       "anchor": "review",
-      "text": "Let's say it kept making too many croissants on Wednesdays. It notices the pattern. So it suggests a fix. And it tests that fix on your past sales first."
+      "text": "So let's say it kept telling you to bake too many croissants on Wednesdays. It notices that pattern. Then it suggests a small change, and tests it against your past sales first, just to make sure it really helps."
     },
     {
       "id": "approve",
       "anchor": "approve",
-      "text": "You just tap approve. And tomorrow's plan gets a little smarter. You're always the one in control."
+      "text": "All you do is tap approve. And just like that, tomorrow's plan gets a little better. You're always the one making the call."
     },
     {
       "id": "diverge",
       "anchor": "diverge",
-      "text": "And every shop is different. So each one learns its own rhythm. This one learned Wednesdays. That one learned Sundays."
+      "text": "And every shop is a little different, so each one picks up its own habits. Maybe one learns to ease off on Wednesdays, while another finds it's really Sundays that are slow."
     },
     {
       "id": "thesis",
       "anchor": "thesis",
-      "text": "That's BakerySense. It doesn't just guess what to bake. It learns your bakery. And it gets better every single day."
+      "text": "And that's BakerySense. It doesn't just guess what to bake. It genuinely learns your bakery, and gets a little better every day."
     }
   ]
 }
