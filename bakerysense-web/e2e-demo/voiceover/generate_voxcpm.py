@@ -43,14 +43,23 @@ def main() -> int:
     if ref and not os.path.exists(ref):
         raise FileNotFoundError(f"REFERENCE_WAV not found: {ref}")
 
+    # Idempotent: skip lines whose wav already exists unless FORCE=1. Lets us
+    # add a single new narration line without regenerating the rest.
+    force = os.environ.get("FORCE", "") == "1"
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     script = json.loads(SCRIPT_PATH.read_text())
     sections = script["sections"]
 
-    print("Loading VoxCPM2 (first run downloads weights)...")
-    if ref:
-        print(f"Cloning voice from reference: {ref}")
-    model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False)
+    todo = [s for s in sections if force or not (OUT_DIR / f"{s['id']}.wav").exists()]
+    model = None
+    if todo:
+        print("Loading VoxCPM2 (first run downloads weights)...")
+        if ref:
+            print(f"Cloning voice from reference: {ref}")
+        model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False)
+    else:
+        print("All clips already present; rebuilding manifest only.")
 
     kw = {"cfg_value": 2.0, "inference_timesteps": 10}
     if ref:
@@ -59,9 +68,12 @@ def main() -> int:
     manifest = []
     for s in sections:
         out = OUT_DIR / f"{s['id']}.wav"
-        print(f"  → {s['id']}: {s['text'][:60]}...")
-        wav = model.generate(text=s["text"], **kw)
-        sf.write(str(out), wav, model.tts_model.sample_rate)
+        if force or not out.exists():
+            print(f"  → {s['id']}: {s['text'][:60]}...")
+            wav = model.generate(text=s["text"], **kw)
+            sf.write(str(out), wav, model.tts_model.sample_rate)
+        else:
+            print(f"  · {s['id']}: kept (exists)")
         manifest.append({
             "id": s["id"],
             "anchor": s["anchor"],

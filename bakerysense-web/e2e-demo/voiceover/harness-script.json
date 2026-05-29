@@ -34,6 +34,11 @@
       "text": "All you do is tap approve. And just like that, tomorrow's plan gets a little better. You're always the one making the call."
     },
     {
+      "id": "skills",
+      "anchor": "skills",
+      "text": "And under the hood, every fix is a versioned skill. Diagnosed, tested, and approved. So you can always see what changed, and roll it back any time."
+    },
+    {
       "id": "diverge",
       "anchor": "diverge",
       "text": "And every shop is a little different, so each one picks up its own habits. Maybe one learns to ease off on Wednesdays, while another finds it's really Sundays that are slow."

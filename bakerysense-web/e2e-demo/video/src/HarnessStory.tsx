@@ -54,6 +54,7 @@ const D = {
 	loop: dur("loop", 230),
 	review: dur("review", 260),
 	approve: dur("approve", 190),
+	skills: dur("skills", 220),
 	diverge: dur("diverge", 230),
 	thesis: dur("thesis", 200),
 };
@@ -258,6 +259,63 @@ const LoopDiagram: React.FC = () => {
 	);
 };
 
+// ---- Under the hood — every fix is a versioned skill (motion) --------------
+const SkillsBeat: React.FC = () => {
+	const frame = useCurrentFrame();
+	const { fps } = useVideoConfig();
+	const opacity = env(frame, D.skills);
+	const versions = [
+		{ v: "v1", note: "baseline" },
+		{ v: "v2", note: "Wed −20%" },
+		{ v: "v3", note: "Fri +12%" },
+	];
+	const traits = ["version-controlled", "validated on real sales", "reversible"];
+	return (
+		<AbsoluteFill style={{ opacity }}>
+			<Backdrop dark />
+			<SceneTitle kicker="Under the hood" title="Every fix is a versioned skill" dark />
+			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 44, paddingTop: 40 }}>
+				{/* skill name */}
+				<div style={{ fontFamily: MONO, fontSize: 18, color: "oklch(0.72 0.02 70)" }}>forecast.skill</div>
+				{/* version lineage */}
+				<div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+					{versions.map((ver, i) => {
+						const s = spring({ frame: frame - 16 - i * 22, fps, config: { damping: 160 } });
+						const latest = i === versions.length - 1;
+						const lit = latest ? interpolate(frame, [16 + i * 22 + 10, 16 + i * 22 + 30], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 1;
+						return (
+							<React.Fragment key={ver.v}>
+								{i > 0 && (
+									<svg width={70} height={20} style={{ opacity: s }}>
+										<line x1={4} y1={10} x2={56} y2={10} stroke={AMBER} strokeWidth={3} strokeLinecap="round" />
+										<path d={`M 56 4 L 66 10 L 56 16`} fill="none" stroke={AMBER} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+									</svg>
+								)}
+								<div style={{ opacity: s, transform: `scale(${interpolate(s, [0, 1], [0.85, 1])})`, width: 176, height: 132, borderRadius: 16, background: latest ? AMBER : "oklch(0.24 0.02 60)", border: `2px solid ${latest ? AMBER : "oklch(0.4 0.02 60)"}`, boxShadow: latest ? `0 0 ${28 * lit}px oklch(0.76 0.14 70 / 0.55)` : "none", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6 }}>
+									<div style={{ fontFamily: MONO, fontSize: 30, fontWeight: 800, color: latest ? INK : "oklch(0.82 0.02 70)" }}>{ver.v}</div>
+									<div style={{ fontFamily: MONO, fontSize: 15, color: latest ? "oklch(0.3 0.06 60)" : MUTED }}>{ver.note}</div>
+									{latest && <div style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: "oklch(0.32 0.08 60)", textTransform: "uppercase", letterSpacing: "0.06em" }}>active</div>}
+								</div>
+							</React.Fragment>
+						);
+					})}
+				</div>
+				{/* traits */}
+				<div style={{ display: "flex", gap: 14 }}>
+					{traits.map((t, i) => {
+						const s = spring({ frame: frame - 80 - i * 10, fps, config: { damping: 150 } });
+						return (
+							<span key={t} style={{ opacity: s, transform: `translateY(${interpolate(s, [0, 1], [12, 0])}px)`, fontFamily: MONO, fontSize: 15, color: CREAMTX, background: "oklch(0.22 0.02 60)", border: "1px solid oklch(0.4 0.02 60)", borderRadius: 999, padding: "8px 16px" }}>
+								<span style={{ color: GREEN, fontWeight: 700 }}>✓</span> {t}
+							</span>
+						);
+					})}
+				</div>
+			</AbsoluteFill>
+		</AbsoluteFill>
+	);
+};
+
 // ---- Divergence — large readable native cards (styled like the app) --------
 const Divergence: React.FC = () => {
 	const frame = useCurrentFrame();
@@ -319,7 +377,8 @@ const Thesis: React.FC = () => {
 				<Img src={staticFile("logo-icon.png")} style={{ width: 130, marginBottom: 12, opacity: a, transform: `scale(${interpolate(a, [0, 1], [0.8, 1])})` }} />
 				<div style={{ fontFamily: FONT, fontSize: 46, fontWeight: 800, color: "#fff8ee", opacity: b, transform: `translateY(${interpolate(b, [0, 1], [16, 0])}px)` }}>It doesn't just predict.</div>
 				<div style={{ fontFamily: FONT, fontSize: 46, fontWeight: 800, color: AMBER, opacity: c, transform: `translateY(${interpolate(c, [0, 1], [16, 0])}px)` }}>It learns your bakery.</div>
-				<div style={{ fontFamily: MONO, fontSize: 17, color: CREAMTX, marginTop: 18, opacity: c }}>bakerysense.swmengappdev.workers.dev</div>
+				<div style={{ fontFamily: FONT, fontSize: 20, color: CREAMTX, marginTop: 14, opacity: c }}>Built on self-evolving skills.</div>
+				<div style={{ fontFamily: MONO, fontSize: 16, color: "oklch(0.7 0.02 70)", marginTop: 14, opacity: c }}>bakerysense.swmengappdev.workers.dev</div>
 			</AbsoluteFill>
 		</AbsoluteFill>
 	);
@@ -336,6 +395,7 @@ export const HarnessStory: React.FC = () => {
 		{ node: <LoopDiagram />, d: D.loop, anchor: "loop" },
 		{ node: <RealClip src="recordings/review.webm" clipKey="review" sceneFrames={D.review} kicker="It found a pattern" title="A correction, ready to review" tagLabel="RESULT" tag="held-out error 3.0% → 2.0%" tagColor={GREEN} />, d: D.review, anchor: "review" },
 		{ node: <RealClip src="recordings/approve.webm" clipKey="approve" sceneFrames={D.approve} kicker="You decide" title="One tap to approve" tagLabel="ACTION" tag="next forecast uses the fix" tagColor={AMBER} />, d: D.approve, anchor: "approve" },
+		{ node: <SkillsBeat />, d: D.skills, anchor: "skills" },
 		{ node: <Divergence />, d: D.diverge, anchor: "diverge" },
 		{ node: <Thesis />, d: D.thesis, anchor: "thesis" },
 	];
