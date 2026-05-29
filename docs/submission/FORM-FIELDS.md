@@ -52,14 +52,14 @@ TypeScript, Next.js, Cloudflare Workers, D1, LightGBM, Gemma 4, Remotion
 
 ### Project Screenshots  (up to 3 · JPEG/PNG/WebP/GIF · ≤5MB · 200–4096px)
 Upload these, in this order, from `docs/submission/upload/`:
-1. `01-dashboard-bakeplan.png` — the daily bake plan (product)
-2. `02-harness-evolution.png` — the self-inspection / approval page (the differentiator)
-3. `03-branch-divergence.png` — two branches, two different learned corrections (the wow)
+1. `01-cover.png` — branded cover (lead/thumbnail): name, tagline, skill-version lineage
+2. `02-dashboard-bakeplan.png` — the real daily bake plan (product)
+3. `03-harness-evolution.png` — the real self-inspection / approval page (the differentiator)
 
 All three are 200–4096px and well under 5MB.
 
 ---
 
 ## If there's also a video / Drive field (below the fold)
-- Video file: `bakerysense-demo.mp4` (64s). If a **URL** is required, upload to YouTube/Drive first and paste the link.
+- Video file: `bakerysense-demo.mp4` (~2 min). If a **URL** is required, upload to YouTube/Drive first and paste the link.
 - If a Drive folder is requested, use `DRIVE-CONTENTS.md` for the bundle layout.

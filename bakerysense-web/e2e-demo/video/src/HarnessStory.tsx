@@ -384,6 +384,48 @@ const Thesis: React.FC = () => {
 	);
 };
 
+// ---- Cover / thumbnail (static) --------------------------------------------
+export const Cover: React.FC = () => {
+	const versions = [
+		{ v: "v1", note: "baseline", on: false },
+		{ v: "v2", note: "Wed −20%", on: false },
+		{ v: "v3", note: "active", on: true },
+	];
+	return (
+		<AbsoluteFill style={{ background: "radial-gradient(120% 120% at 30% 35%, oklch(0.27 0.03 60), oklch(0.15 0.02 60) 62%, oklch(0.10 0.01 60))" }}>
+			<AbsoluteFill style={{ padding: 90, flexDirection: "column", justifyContent: "center" }}>
+				<div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+					<Img src={staticFile("logo-icon.png")} style={{ width: 110 }} />
+					<div>
+						<div style={{ fontFamily: MONO, fontSize: 22, color: AMBER, letterSpacing: "0.14em", textTransform: "uppercase" }}>BakerySense</div>
+						<div style={{ fontFamily: MONO, fontSize: 18, color: "oklch(0.7 0.02 70)", marginTop: 4 }}>UCWS Singapore 2026 · Skills + Application</div>
+					</div>
+				</div>
+				<div style={{ fontFamily: FONT, fontSize: 78, fontWeight: 800, color: "#fff8ee", marginTop: 40, lineHeight: 1.05, letterSpacing: "-0.02em", maxWidth: 1500 }}>
+					A self-evolving harness<br />for bakeries that <span style={{ color: AMBER }}>learns on its own</span>
+				</div>
+				<div style={{ fontFamily: FONT, fontSize: 28, color: CREAMTX, marginTop: 26, maxWidth: 1300 }}>
+					Tomorrow's bake plan, decided. Then it reviews its own forecasts every night and proposes versioned, validated fixes.
+				</div>
+				{/* skill lineage motif */}
+				<div style={{ display: "flex", alignItems: "center", marginTop: 50 }}>
+					<span style={{ fontFamily: MONO, fontSize: 18, color: "oklch(0.7 0.02 70)", marginRight: 24 }}>forecast.skill</span>
+					{versions.map((ver, i) => (
+						<React.Fragment key={ver.v}>
+							{i > 0 && <span style={{ color: AMBER, fontSize: 28, margin: "0 14px" }}>→</span>}
+							<div style={{ width: 150, height: 96, borderRadius: 14, background: ver.on ? AMBER : "oklch(0.24 0.02 60)", border: `2px solid ${ver.on ? AMBER : "oklch(0.4 0.02 60)"}`, boxShadow: ver.on ? "0 0 36px oklch(0.76 0.14 70 / 0.5)" : "none", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
+								<div style={{ fontFamily: MONO, fontSize: 28, fontWeight: 800, color: ver.on ? INK : "oklch(0.82 0.02 70)" }}>{ver.v}</div>
+								<div style={{ fontFamily: MONO, fontSize: 14, color: ver.on ? "oklch(0.3 0.06 60)" : MUTED }}>{ver.note}</div>
+							</div>
+						</React.Fragment>
+					))}
+				</div>
+			</AbsoluteFill>
+			<div style={{ position: "absolute", bottom: 50, left: 90, fontFamily: MONO, fontSize: 18, color: AMBER }}>bakerysense.swmengappdev.workers.dev</div>
+		</AbsoluteFill>
+	);
+};
+
 // ---- Assembly ---------------------------------------------------------------
 export const HarnessStory: React.FC = () => {
 	let f = 0;
