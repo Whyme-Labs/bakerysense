@@ -3,6 +3,7 @@ import {
 	AbsoluteFill,
 	Audio,
 	Img,
+	OffthreadVideo,
 	Sequence,
 	staticFile,
 	useCurrentFrame,
@@ -14,10 +15,10 @@ import {
 import voManifest from "../public/vo-harness/manifest.json";
 
 // ---------------------------------------------------------------------------
-// Cold-viewer-first, SHOW-don't-tell motion-graphic walkthrough.
-// Brand → the daily gamble → what you get (a number) → setup → it learns
-// (forecast vs actual chart) → the fix (waste bars closing) → you approve →
-// every shop learns differently → close. All frame-driven (Remotion rules).
+// HYBRID product walkthrough: REAL app UI (in a browser frame, zoomed, with
+// callouts) is the star; motion graphics carry only the conceptual beats
+// (the daily gamble, the nightly self-check loop, the close). Shows a
+// complete, shipped product — not a mockup.
 // ---------------------------------------------------------------------------
 
 const INK = "oklch(0.18 0.01 60)";
@@ -42,6 +43,9 @@ function voFrames(a: string): number {
 	return e ? Math.ceil((e.duration_ms / 1000) * FPS) + VO_TAIL : 0;
 }
 const dur = (a: string, min: number) => Math.max(min, voFrames(a));
+
+// Recorded clip lengths (seconds).
+const CLIP_SEC: Record<string, number> = { input: 8.04, plan: 9.32, review: 8.64, approve: 8.08 };
 
 const D = {
 	cold: dur("cold", 200),
@@ -82,14 +86,69 @@ const Backdrop: React.FC<{ dark?: boolean }> = ({ dark }) => {
 const SceneTitle: React.FC<{ kicker: string; title: string; dark?: boolean }> = ({ kicker, title, dark }) => {
 	const s = useSpring(0);
 	return (
-		<div style={{ position: "absolute", top: 56, width: "100%", textAlign: "center", opacity: s, transform: `translateY(${interpolate(s, [0, 1], [-16, 0])}px)` }}>
-			<div style={{ fontFamily: MONO, fontSize: 16, letterSpacing: "0.16em", textTransform: "uppercase", color: AMBER }}>{kicker}</div>
-			<div style={{ fontFamily: FONT, fontSize: 40, fontWeight: 700, marginTop: 8, color: dark ? "#fff8ee" : INK }}>{title}</div>
+		<div style={{ position: "absolute", top: 40, width: "100%", textAlign: "center", opacity: s, transform: `translateY(${interpolate(s, [0, 1], [-16, 0])}px)`, zIndex: 5 }}>
+			<div style={{ fontFamily: MONO, fontSize: 15, letterSpacing: "0.16em", textTransform: "uppercase", color: AMBER }}>{kicker}</div>
+			<div style={{ fontFamily: FONT, fontSize: 34, fontWeight: 700, marginTop: 6, color: dark ? "#fff8ee" : INK }}>{title}</div>
 		</div>
 	);
 };
 
-// A brand bread/loaf "item" used to show quantities (waste, baked).
+// Caption tag (INPUT/OUTPUT/...) that slides up at the bottom.
+const TagChip: React.FC<{ label: string; text: string; color: string; delay?: number }> = ({ label, text, color, delay = 14 }) => {
+	const s = useSpring(delay, 160);
+	return (
+		<div style={{ position: "absolute", bottom: 44, width: "100%", textAlign: "center", opacity: s, transform: `translateY(${interpolate(s, [0, 1], [18, 0])}px)`, zIndex: 5 }}>
+			<span style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "10px 20px", borderRadius: 999, background: "oklch(0.20 0.02 60)", border: `1px solid ${color}` }}>
+				<span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color, letterSpacing: "0.08em" }}>{label}</span>
+				<span style={{ fontFamily: FONT, fontSize: 17, color: "#fff8ee" }}>{text}</span>
+			</span>
+		</div>
+	);
+};
+
+// macOS-style browser window frame around real app footage.
+const BrowserFrame: React.FC<{ children: React.ReactNode; appear?: number }> = ({ children, appear = 0 }) => {
+	const s = useSpring(appear, 200);
+	return (
+		<div style={{ width: 1080, transform: `translateY(${interpolate(s, [0, 1], [24, 0])}px) scale(${interpolate(s, [0, 1], [0.96, 1])})`, opacity: s, borderRadius: 14, overflow: "hidden", boxShadow: "0 40px 100px oklch(0.08 0.02 60 / 0.65)", border: "1px solid oklch(0.4 0.02 60)" }}>
+			<div style={{ height: 40, background: "oklch(0.22 0.01 60)", display: "flex", alignItems: "center", padding: "0 16px", gap: 8 }}>
+				<span style={{ width: 12, height: 12, borderRadius: 999, background: "#ff5f57" }} />
+				<span style={{ width: 12, height: 12, borderRadius: 999, background: "#febc2e" }} />
+				<span style={{ width: 12, height: 12, borderRadius: 999, background: "#28c840" }} />
+				<div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+					<div style={{ background: "oklch(0.16 0.01 60)", borderRadius: 7, padding: "5px 16px", fontFamily: MONO, fontSize: 13, color: "oklch(0.7 0.02 70)" }}>bakerysense.swmengappdev.workers.dev</div>
+				</div>
+			</div>
+			{children}
+		</div>
+	);
+};
+
+// A real recorded clip, stretched to fill the scene, framed + slow zoom.
+const RealClip: React.FC<{ src: string; clipKey: string; sceneFrames: number; kicker: string; title: string; tagLabel: string; tag: string; tagColor: string }>
+	= ({ src, clipKey, sceneFrames, kicker, title, tagLabel, tag, tagColor }) => {
+	const frame = useCurrentFrame();
+	const opacity = env(frame, sceneFrames);
+	const clipFrames = Math.ceil(CLIP_SEC[clipKey] * FPS);
+	// Stretch the clip to fill the (longer) scene so it never freezes.
+	const rate = Math.max(0.4, Math.min(1, clipFrames / (sceneFrames - 30)));
+	const zoom = interpolate(frame, [10, sceneFrames], [1.0, 1.05], { extrapolateRight: "clamp", easing: EASE });
+	return (
+		<AbsoluteFill style={{ opacity }}>
+			<Backdrop dark />
+			<SceneTitle kicker={kicker} title={title} dark />
+			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center", paddingTop: 36 }}>
+				<div style={{ transform: `scale(${zoom})` }}>
+					<BrowserFrame appear={6}>
+						<OffthreadVideo src={staticFile(src)} playbackRate={rate} style={{ width: "100%", display: "block" }} />
+					</BrowserFrame>
+				</div>
+			</AbsoluteFill>
+			<TagChip label={tagLabel} text={tag} color={tagColor} />
+		</AbsoluteFill>
+	);
+};
+
 const Loaf: React.FC<{ size?: number; color?: string; opacity?: number }> = ({ size = 40, color = AMBER_D, opacity = 1 }) => (
 	<svg width={size} height={size * 0.7} viewBox="0 0 40 28" style={{ opacity }}>
 		<ellipse cx="20" cy="18" rx="18" ry="9" fill={color} />
@@ -112,7 +171,7 @@ const BrandIntro: React.FC = () => {
 	);
 };
 
-// ---- 1. Hook — the daily gamble --------------------------------------------
+// ---- 1. Hook — the daily gamble (motion) -----------------------------------
 const Hook: React.FC = () => {
 	const frame = useCurrentFrame();
 	const opacity = env(frame, D.cold);
@@ -129,7 +188,6 @@ const Hook: React.FC = () => {
 					<div style={{ fontFamily: FONT, fontSize: 60, fontWeight: 800, color: INK, marginTop: 8, letterSpacing: "-0.02em" }}>How much do I bake?</div>
 				</div>
 				<div style={{ display: "flex", gap: 40 }}>
-					{/* too much */}
 					<div style={{ opacity: leftIn, transform: `translateX(${interpolate(leftIn, [0, 1], [-30, 0])}px)`, width: 380, background: "#fff", borderRadius: 16, padding: 24, border: "1px solid oklch(0.9 0.02 70)", boxShadow: "0 14px 40px oklch(0.5 0.05 70 / 0.12)" }}>
 						<div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 20, color: INK }}>Bake too much</div>
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 7, margin: "16px 0" }}>
@@ -141,7 +199,6 @@ const Hook: React.FC = () => {
 						</div>
 						<div style={{ fontFamily: MONO, fontSize: 18, color: RED, fontWeight: 700 }}>RM {wasteN} binned</div>
 					</div>
-					{/* too little */}
 					<div style={{ opacity: rightIn, transform: `translateX(${interpolate(rightIn, [0, 1], [30, 0])}px)`, width: 380, background: "#fff", borderRadius: 16, padding: 24, border: "1px solid oklch(0.9 0.02 70)", boxShadow: "0 14px 40px oklch(0.5 0.05 70 / 0.12)" }}>
 						<div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 20, color: INK }}>Bake too little</div>
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 7, margin: "16px 0", minHeight: 56 }}>
@@ -156,244 +213,85 @@ const Hook: React.FC = () => {
 	);
 };
 
-// ---- 2. What you get — the recommendation ----------------------------------
-const WhatYouGet: React.FC = () => {
+// ---- The loop diagram (motion) ---------------------------------------------
+const LoopDiagram: React.FC = () => {
 	const frame = useCurrentFrame();
-	const opacity = env(frame, D.plan);
-	const n = Math.round(interpolate(frame, [24, 70], [0, 90], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE }));
-	const opts = [
-		{ k: "Conservative", v: 75, sub: "low waste" },
-		{ k: "Balanced", v: 90, sub: "recommended", on: true },
-		{ k: "Aggressive", v: 121, sub: "never sell out" },
-	];
-	return (
-		<AbsoluteFill style={{ opacity }}>
-			<Backdrop />
-			<SceneTitle kicker="What you get" title="Tomorrow's bake plan, decided" />
-			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center", flexDirection: "column", paddingTop: 70 }}>
-				<div style={{ display: "flex", alignItems: "baseline", gap: 18, fontFamily: FONT }}>
-					<span style={{ fontSize: 30, color: MUTED }}>Bake</span>
-					<span style={{ fontSize: 150, fontWeight: 800, color: AMBER_D, lineHeight: 1, letterSpacing: "-0.03em" }}>{n}</span>
-					<span style={{ fontSize: 34, color: INK, fontWeight: 600 }}>croissants</span>
-				</div>
-				<div style={{ fontFamily: MONO, fontSize: 16, color: MUTED, marginTop: 6 }}>not 120 like yesterday — that binned 30</div>
-				<div style={{ display: "flex", gap: 18, marginTop: 40 }}>
-					{opts.map((o, i) => {
-						const s = useSpring(34 + i * 8, 160);
-						return (
-							<div key={o.k} style={{ width: 240, opacity: s, transform: `translateY(${interpolate(s, [0, 1], [20, 0])}px)`, background: o.on ? AMBER : "#fff", border: `2px solid ${o.on ? AMBER : "oklch(0.9 0.02 70)"}`, borderRadius: 14, padding: "16px 20px", boxShadow: o.on ? "0 14px 40px oklch(0.76 0.14 70 / 0.3)" : "0 8px 24px oklch(0.5 0.05 70 / 0.08)" }}>
-								<div style={{ fontFamily: MONO, fontSize: 13, color: o.on ? "oklch(0.32 0.08 60)" : MUTED, textTransform: "uppercase", letterSpacing: "0.05em" }}>{o.k}</div>
-								<div style={{ fontFamily: FONT, fontSize: 44, fontWeight: 800, color: INK }}>{o.v}</div>
-								<div style={{ fontFamily: FONT, fontSize: 14, color: o.on ? "oklch(0.32 0.08 60)" : MUTED }}>{o.sub}</div>
-							</div>
-						);
-					})}
-				</div>
-			</AbsoluteFill>
-		</AbsoluteFill>
-	);
-};
-
-// ---- 3. Getting started — data flows in ------------------------------------
-const GettingStarted: React.FC = () => {
-	const frame = useCurrentFrame();
-	const opacity = env(frame, D.input);
-	const rows = ["2026-05-12  CROISSANT  88", "2026-05-13  BAGUETTE  140", "2026-05-14  CROISSANT  95", "2026-05-15  PAIN AU CHOC  72", "2026-05-16  CROISSANT  130"];
-	const logoS = useSpring(20, 160);
-	return (
-		<AbsoluteFill style={{ opacity }}>
-			<Backdrop dark />
-			<SceneTitle kicker="Getting started" title="Connect your sales — that's it" dark />
-			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 90, paddingTop: 60 }}>
-				<div style={{ width: 460 }}>
-					<div style={{ fontFamily: MONO, fontSize: 14, color: MUTED, marginBottom: 10 }}>sales.csv</div>
-					{rows.map((r, i) => {
-						const a = interpolate(frame, [20 + i * 8, 40 + i * 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-						return <div key={i} style={{ opacity: a, transform: `translateX(${interpolate(a, [0, 1], [-24, 0])}px)`, fontFamily: MONO, fontSize: 16, color: CREAMTX, background: "oklch(0.24 0.02 60)", border: "1px solid oklch(0.36 0.02 60)", borderRadius: 8, padding: "9px 14px", marginBottom: 7 }}>{r}</div>;
-					})}
-				</div>
-				<div style={{ fontFamily: MONO, fontSize: 40, color: AMBER, opacity: interpolate(frame, [50, 65], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>→</div>
-				<div style={{ opacity: logoS, transform: `scale(${interpolate(logoS, [0, 1], [0.85, 1])})`, textAlign: "center" }}>
-					<Img src={staticFile("logo-icon.png")} style={{ width: 150 }} />
-					<div style={{ fontFamily: MONO, fontSize: 15, color: AMBER, marginTop: 10 }}>two weeks is enough</div>
-				</div>
-			</AbsoluteFill>
-		</AbsoluteFill>
-	);
-};
-
-// ---- chart helpers ----------------------------------------------------------
-// Animated bar pair (forecast vs actual) with a waste gap that can close.
-const CHART = { x: 320, y: 250, w: 800, h: 360 };
-
-// ---- 4. The magic — it checks itself ---------------------------------------
-const ItLearns: React.FC = () => {
-	const frame = useCurrentFrame();
+	const { fps } = useVideoConfig();
 	const opacity = env(frame, D.loop);
-	// 7 days; actual sales (green) with a Wednesday dip; forecast flat-high (amber).
-	const days = ["M", "T", "W", "T", "F", "S", "S"];
-	const actual = [96, 92, 78, 95, 110, 130, 88];
-	const forecast = 100;
-	const maxV = 140;
-	const draw = interpolate(frame, [20, 80], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE });
-	const colW = CHART.w / days.length;
-	const yOf = (v: number) => CHART.y + CHART.h - (v / maxV) * CHART.h;
-	const fLineY = yOf(forecast);
+	const nodes = [
+		{ label: "predict", sub: "tomorrow's plan" },
+		{ label: "check", sub: "vs what sold" },
+		{ label: "fix", sub: "tested on past sales" },
+		{ label: "approve", sub: "you decide" },
+	];
+	const cx = 720, cy = 500, r = 215;
+	const active = Math.floor(interpolate(frame, [40, D.loop - 20], [0, 4], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })) % 4;
+	const titleS = spring({ frame, fps, config: { damping: 200 } });
 	return (
 		<AbsoluteFill style={{ opacity }}>
 			<Backdrop dark />
-			<SceneTitle kicker="The part that's different" title="Every night, it checks its own guesses" dark />
+			<div style={{ position: "absolute", top: 58, width: "100%", textAlign: "center", opacity: titleS, transform: `translateY(${interpolate(titleS, [0, 1], [18, 0])}px)` }}>
+				<div style={{ fontFamily: MONO, fontSize: 17, color: AMBER, letterSpacing: "0.18em", textTransform: "uppercase" }}>It gets smarter on its own</div>
+				<div style={{ fontFamily: FONT, fontSize: 42, fontWeight: 700, color: "#fff8ee", marginTop: 8 }}>Every night, it checks its own work</div>
+			</div>
 			<svg width={1440} height={900} style={{ position: "absolute", inset: 0 }}>
-				{/* forecast flat line */}
-				<line x1={CHART.x} y1={fLineY} x2={CHART.x + CHART.w * draw} y2={fLineY} stroke={AMBER} strokeWidth={4} strokeDasharray="2 8" strokeLinecap="round" />
-				{/* actual sales line */}
-				<polyline fill="none" stroke={GREEN} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round"
-					points={actual.map((v, i) => `${CHART.x + colW * (i + 0.5)},${yOf(v)}`).filter((_, i) => i / days.length <= draw).join(" ")} />
-				{actual.map((v, i) => {
-					const show = i / days.length <= draw ? 1 : 0;
-					return <circle key={i} cx={CHART.x + colW * (i + 0.5)} cy={yOf(v)} r={6} fill={GREEN} opacity={show} />;
-				})}
-				{/* Wednesday gap highlight */}
-				{(() => { const i = 2; const gap = interpolate(frame, [90, 110], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }); const cx = CHART.x + colW * (i + 0.5);
-					return <g opacity={gap}><line x1={cx} y1={fLineY} x2={cx} y2={yOf(actual[i])} stroke={RED} strokeWidth={3} /><rect x={cx - 30} y={(fLineY + yOf(actual[i])) / 2 - 16} width={60} height={28} rx={6} fill={RED} /></g>; })()}
-			</svg>
-			<div style={{ position: "absolute", left: CHART.x + 2.5 * (CHART.w / 7) + 36, top: (yOf(100) + yOf(78)) / 2 - 14, opacity: interpolate(frame, [108, 125], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), fontFamily: MONO, fontSize: 15, color: "#fff8ee" }}>over-baked Wednesday</div>
-			<div style={{ position: "absolute", top: yOf(100) - 30, left: CHART.x - 110, fontFamily: MONO, fontSize: 14, color: AMBER }}>forecast</div>
-			<div style={{ position: "absolute", top: yOf(130) - 4, left: CHART.x + CHART.w + 16, fontFamily: MONO, fontSize: 14, color: GREEN }}>actually<br />sold</div>
-			<div style={{ position: "absolute", bottom: 150, width: "100%", textAlign: "center", fontFamily: FONT, fontSize: 22, color: CREAMTX, opacity: interpolate(frame, [120, 140], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>It keeps guessing 100. It keeps selling ~78. <span style={{ color: AMBER }}>Same miss, every week.</span></div>
-		</AbsoluteFill>
-	);
-};
-
-// ---- 5. The fix — waste bars close -----------------------------------------
-const TheFix: React.FC = () => {
-	const frame = useCurrentFrame();
-	const opacity = env(frame, D.review);
-	const weeks = 5;
-	const actual = 80, forecastBefore = 100;
-	const maxV = 120;
-	const bx = 360, by = 230, bw = 720, bh = 330;
-	const slot = bw / weeks;
-	const yOf = (v: number) => by + bh - (v / maxV) * bh;
-	const grow = interpolate(frame, [16, 50], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE });
-	const fix = interpolate(frame, [110, 150], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE });
-	const fc = forecastBefore - (forecastBefore - actual) * fix; // forecast bar drops to actual
-	const wape = (3.0 - 1.0 * fix).toFixed(1);
-	return (
-		<AbsoluteFill style={{ opacity }}>
-			<Backdrop dark />
-			<SceneTitle kicker="The fix" title="It spots the pattern, and corrects it" dark />
-			<svg width={1440} height={900} style={{ position: "absolute", inset: 0 }}>
-				{Array.from({ length: weeks }).map((_, i) => {
-					const cx = bx + slot * i + slot / 2;
-					const aBarH = (actual / maxV) * bh * grow;
-					const fBarH = (fc / maxV) * bh * grow;
-					return (
-						<g key={i}>
-							{/* waste gap (forecast above actual) */}
-							<rect x={cx - 26} y={yOf(fc)} width={52} height={Math.max(0, yOf(actual) - yOf(fc))} fill={RED} opacity={(1 - fix) * 0.85} rx={4} />
-							{/* forecast bar (amber, drops on fix) */}
-							<rect x={cx - 26} y={by + bh - fBarH} width={52} height={fBarH} rx={4} fill={AMBER} opacity={0.5} />
-							{/* actual bar (green) */}
-							<rect x={cx - 26} y={by + bh - aBarH} width={52} height={aBarH} rx={4} fill={GREEN} />
-							<text x={cx} y={by + bh + 26} textAnchor="middle" fontFamily={MONO} fontSize={14} fill={MUTED}>Wed {i + 1}</text>
-						</g>
-					);
+				<circle cx={cx} cy={cy} r={r} fill="none" stroke="oklch(0.4 0.02 60)" strokeWidth={2} strokeDasharray="6 10" />
+				{nodes.map((_, i) => {
+					const a0 = (i / 4) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / 4) * Math.PI * 2 - Math.PI / 2;
+					const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+					const mx = cx + r * Math.cos((a0 + a1) / 2), my = cy + r * Math.sin((a0 + a1) / 2);
+					return <path key={i} d={`M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`} fill="none" stroke={AMBER} strokeWidth={4} opacity={i === active ? 1 : 0.15} strokeLinecap="round" />;
 				})}
 			</svg>
-			<div style={{ position: "absolute", top: by - 6, left: bx + bw + 28, fontFamily: MONO, fontSize: 15, opacity: 1 - fix }}>
-				<div style={{ color: AMBER }}>forecast 100</div>
-				<div style={{ color: GREEN, marginTop: 4 }}>sold 80</div>
-				<div style={{ color: RED, marginTop: 4 }}>20% wasted</div>
-			</div>
-			<div style={{ position: "absolute", bottom: 150, width: "100%", textAlign: "center", opacity: interpolate(frame, [120, 145], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), fontFamily: FONT, fontSize: 24, color: CREAMTX }}>
-				Wednesday forecast <span style={{ color: GREEN, fontWeight: 700 }}>−20%</span> · tested on past sales · error <span style={{ fontFamily: MONO, color: GREEN }}>{wape}%</span>
-			</div>
-		</AbsoluteFill>
-	);
-};
-
-// ---- 6. You decide — approve -----------------------------------------------
-const YouDecide: React.FC = () => {
-	const frame = useCurrentFrame();
-	const opacity = env(frame, D.approve);
-	const card = useSpring(8, 180);
-	const press = interpolate(frame, [70, 80], [1, 0.96], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-	const done = frame > 84;
-	const ripple = interpolate(frame, [72, 120], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-	return (
-		<AbsoluteFill style={{ opacity }}>
-			<Backdrop />
-			<SceneTitle kicker="You stay in control" title="It proposes. You approve." />
-			<AbsoluteFill style={{ justifyContent: "center", alignItems: "center", paddingTop: 60 }}>
-				<div style={{ width: 720, opacity: card, transform: `translateY(${interpolate(card, [0, 1], [22, 0])}px)`, background: "#fff", borderRadius: 18, padding: 30, border: "1px solid oklch(0.9 0.02 70)", boxShadow: "0 20px 60px oklch(0.5 0.05 70 / 0.16)" }}>
-					<div style={{ fontFamily: MONO, fontSize: 14, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Proposed correction · Bukit Bintang</div>
-					<div style={{ fontFamily: FONT, fontSize: 28, fontWeight: 700, color: INK, marginTop: 8 }}>Bake 20% fewer croissants on Wednesdays</div>
-					<div style={{ fontFamily: MONO, fontSize: 15, color: MUTED, marginTop: 6 }}>validated on 8 weeks of sales · error 3.0% → 2.0%</div>
-					<div style={{ display: "flex", gap: 14, marginTop: 24, alignItems: "center" }}>
-						<div style={{ position: "relative" }}>
-							<div style={{ position: "absolute", inset: 0, borderRadius: 12, border: `3px solid ${GREEN}`, opacity: (1 - ripple) * 0.8, transform: `scale(${1 + ripple})` }} />
-							<div style={{ transform: `scale(${press})`, background: done ? GREEN : AMBER, color: done ? "#fff" : INK, borderRadius: 12, padding: "14px 30px", fontFamily: FONT, fontSize: 20, fontWeight: 700 }}>{done ? "✓ Approved" : "Approve"}</div>
-						</div>
-						<div style={{ background: "#fff", border: "1px solid oklch(0.88 0.02 70)", borderRadius: 12, padding: "14px 24px", fontFamily: FONT, fontSize: 20, color: MUTED }}>Reject</div>
-						{done && <div style={{ fontFamily: MONO, fontSize: 16, color: GREEN, marginLeft: 8, opacity: interpolate(frame, [86, 100], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>applied to tomorrow's plan</div>}
+			{nodes.map((n, i) => {
+				const a = (i / 4) * Math.PI * 2 - Math.PI / 2, x = cx + r * Math.cos(a), y = cy + r * Math.sin(a), on = i === active;
+				const pop = on ? spring({ frame: frame - 40 - i * 28, fps, config: { damping: 120 } }) : 0;
+				return (
+					<div key={i} style={{ position: "absolute", left: x - 95, top: y - 52, width: 190, height: 104, transform: `scale(${1 + 0.1 * pop})`, borderRadius: 16, background: on ? AMBER : "oklch(0.24 0.02 60)", border: `2px solid ${on ? AMBER : "oklch(0.4 0.02 60)"}`, boxShadow: on ? `0 0 ${30 + 20 * pop}px oklch(0.76 0.14 70 / 0.6)` : "none", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", fontFamily: FONT }}>
+						<div style={{ fontSize: 26, fontWeight: 700, color: on ? INK : "oklch(0.8 0.02 70)" }}>{n.label}</div>
+						<div style={{ fontSize: 13, color: on ? "oklch(0.3 0.06 60)" : MUTED, marginTop: 2, fontFamily: MONO }}>{n.sub}</div>
 					</div>
-				</div>
-			</AbsoluteFill>
+				);
+			})}
 		</AbsoluteFill>
 	);
 };
 
-// ---- 7. Every shop learns differently --------------------------------------
-const MiniChart: React.FC<{ dipDay: number; label: string; appear: number }> = ({ dipDay, label, appear }) => {
-	const frame = useCurrentFrame();
-	const s = useSpring(appear, 200);
-	const fix = interpolate(frame, [appear + 30, appear + 60], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: EASE });
-	const days = ["M", "T", "W", "T", "F", "S", "S"];
-	const w = 460, h = 200, pad = 10;
-	const slot = (w - pad * 2) / 7;
-	const base = 70;
-	return (
-		<div style={{ flex: 1, opacity: s, transform: `translateY(${interpolate(s, [0, 1], [24, 0])}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-			<div style={{ fontFamily: FONT, fontSize: 26, fontWeight: 700, color: "#fff8ee" }}>{label}</div>
-			<svg width={w} height={h}>
-				{days.map((dd, i) => {
-					const over = i === dipDay;
-					const fH = over ? (100 / 130) * (h - 40) : (base / 130) * (h - 40);
-					const aH = over ? (80 / 130) * (h - 40) : (base / 130) * (h - 40);
-					const x = pad + slot * i + slot / 2;
-					const fNow = over ? fH - (fH - aH) * fix : fH;
-					return (
-						<g key={i}>
-							{over && <rect x={x - 14} y={h - 24 - fNow} width={28} height={Math.max(0, fNow - aH)} fill={RED} opacity={(1 - fix) * 0.8} rx={3} />}
-							<rect x={x - 14} y={h - 24 - aH} width={28} height={aH} rx={3} fill={over ? GREEN : "oklch(0.4 0.02 60)"} />
-							<text x={x} y={h - 6} textAnchor="middle" fontFamily={MONO} fontSize={12} fill={over ? AMBER : MUTED}>{dd}</text>
-						</g>
-					);
-				})}
-			</svg>
-			<div style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color: AMBER }}>learned {days[dipDay] === "W" ? "Wednesdays" : "Sundays"}</div>
-		</div>
-	);
-};
-
+// ---- Divergence — real screenshots of both proposal cards ------------------
 const Divergence: React.FC = () => {
 	const frame = useCurrentFrame();
 	const opacity = env(frame, D.diverge);
+	const titleS = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: "clamp" });
+	const card = (src: string, name: string, diff: string, appear: number, align: "left" | "right") => {
+		const s = spring({ frame: frame - appear, fps: 30, config: { damping: 200 } });
+		const dx = interpolate(s, [0, 1], [align === "left" ? -50 : 50, 0]);
+		return (
+			<div style={{ flex: 1, opacity: s, transform: `translateX(${dx}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: 26 }}>
+				<div style={{ fontFamily: FONT, fontSize: 28, fontWeight: 700, color: "#fff8ee" }}>{name}</div>
+				<div style={{ width: 560, borderRadius: 12, overflow: "hidden", border: `2px solid ${AMBER}`, boxShadow: "0 16px 44px oklch(0.08 0.02 60 / 0.55)" }}>
+					<Img src={staticFile(src)} style={{ width: "100%", display: "block" }} />
+				</div>
+				<div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700, color: AMBER }}>{diff}</div>
+			</div>
+		);
+	};
 	return (
 		<AbsoluteFill style={{ opacity }}>
 			<Backdrop dark />
-			<SceneTitle kicker="Same system · different shops" title="Each shop learns its own habits" dark />
-			<AbsoluteFill style={{ flexDirection: "row", alignItems: "center", paddingTop: 70, paddingLeft: 70, paddingRight: 70 }}>
-				<MiniChart dipDay={2} label="Bukit Bintang" appear={16} />
-				<div style={{ width: 2, height: 300, background: "oklch(0.4 0.02 60)" }} />
-				<MiniChart dipDay={6} label="Subang Jaya" appear={40} />
+			<div style={{ position: "absolute", top: 50, width: "100%", textAlign: "center", opacity: titleS }}>
+				<div style={{ fontFamily: MONO, fontSize: 16, color: AMBER, letterSpacing: "0.16em", textTransform: "uppercase" }}>Same app · different shops</div>
+				<div style={{ fontFamily: FONT, fontSize: 40, fontWeight: 700, color: "#fff8ee", marginTop: 6 }}>Each one learns its own habits</div>
+			</div>
+			<AbsoluteFill style={{ flexDirection: "row", alignItems: "center", paddingTop: 80 }}>
+				{card("captures/harness-card-2.png", "Bukit Bintang", "eased off Wednesdays", 18, "left")}
+				<div style={{ width: 2, height: 220, background: "oklch(0.4 0.02 60)" }} />
+				{card("captures/harness-card-1.png", "Subang Jaya", "eased off Sundays", 40, "right")}
 			</AbsoluteFill>
 		</AbsoluteFill>
 	);
 };
 
-// ---- 8. Close ---------------------------------------------------------------
+// ---- Close (motion) ---------------------------------------------------------
 const Thesis: React.FC = () => {
 	const frame = useCurrentFrame();
 	const opacity = env(frame, D.thesis, 16);
@@ -417,11 +315,11 @@ export const HarnessStory: React.FC = () => {
 	const scenes: { node: React.ReactNode; d: number; anchor: string }[] = [
 		{ node: <BrandIntro />, d: BRAND_FRAMES, anchor: "" },
 		{ node: <Hook />, d: D.cold, anchor: "cold" },
-		{ node: <WhatYouGet />, d: D.plan, anchor: "plan" },
-		{ node: <GettingStarted />, d: D.input, anchor: "input" },
-		{ node: <ItLearns />, d: D.loop, anchor: "loop" },
-		{ node: <TheFix />, d: D.review, anchor: "review" },
-		{ node: <YouDecide />, d: D.approve, anchor: "approve" },
+		{ node: <RealClip src="recordings/plan.webm" clipKey="plan" sceneFrames={D.plan} kicker="What you get" title="Tomorrow's bake plan" tagLabel="OUTPUT" tag="3 options per item · waste · stockout · units" tagColor={AMBER} />, d: D.plan, anchor: "plan" },
+		{ node: <RealClip src="recordings/input.webm" clipKey="input" sceneFrames={D.input} kicker="Getting started" title="Connect your sales" tagLabel="INPUT" tag="a spreadsheet, or your till" tagColor={GREEN} />, d: D.input, anchor: "input" },
+		{ node: <LoopDiagram />, d: D.loop, anchor: "loop" },
+		{ node: <RealClip src="recordings/review.webm" clipKey="review" sceneFrames={D.review} kicker="It found a pattern" title="A correction, ready to review" tagLabel="RESULT" tag="held-out error 3.0% → 2.0%" tagColor={GREEN} />, d: D.review, anchor: "review" },
+		{ node: <RealClip src="recordings/approve.webm" clipKey="approve" sceneFrames={D.approve} kicker="You decide" title="One tap to approve" tagLabel="ACTION" tag="next forecast uses the fix" tagColor={AMBER} />, d: D.approve, anchor: "approve" },
 		{ node: <Divergence />, d: D.diverge, anchor: "diverge" },
 		{ node: <Thesis />, d: D.thesis, anchor: "thesis" },
 	];
